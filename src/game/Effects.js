@@ -1,178 +1,131 @@
-import * as THREE from "three";
+import { MeshBuilder, StandardMaterial, Color3, Vector3, ParticleSystem, Texture, Mesh } from "@babylonjs/core";
 import gsap from "gsap";
 
-const trails = [];
-const particles = [];
-
 export function createMuzzleFlash(scene) {
-  const geo = new THREE.PlaneGeometry(0.4, 0.4);
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0xffaa00,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-  });
-  const flash = new THREE.Mesh(geo, mat);
-  flash.visible = false;
-  scene.add(flash);
-  return flash;
+  const flash = MeshBuilder.CreatePlane("mFlash", { width: 0.5, height: 0.5 }, scene);
+  flash.billboardMode = Mesh.BILLBOARDMODE_ALL;
+  const mat = new StandardMaterial("flashMat", scene);
+  mat.diffuseColor = new Color3(1, 0.8, 0);
+  mat.emissiveColor = new Color3(1, 0.6, 0);
+  mat.disableLighting = true;
+  mat.alpha = 0;
+  flash.material = mat;
+  flash.isVisible = false;
+  return { mesh: flash, material: mat };
 }
 
-export function triggerMuzzleFlash(flash, pos, color = 0xffaa00) {
-  flash.position.copy(pos);
-  flash.material.color.setHex(color);
-  flash.material.opacity = 1;
-  flash.visible = true;
-  flash.scale.set(1.5 + Math.random(), 1.5 + Math.random(), 1);
-
-  gsap.to(flash.material, {
-    opacity: 0,
-    duration: 0.05,
-    onComplete: () => {
-      flash.visible = false;
-    },
-  });
+export function triggerFlash(flash, pos, color = [1, 0.67, 0]) {
+  flash.mesh.position.copyFrom(pos);
+  flash.material.diffuseColor = new Color3(...color);
+  flash.material.emissiveColor = new Color3(...color);
+  flash.mesh.isVisible = true;
+  flash.material.alpha = 1;
+  gsap.to(flash.material, { alpha: 0, duration: 0.06, onComplete: () => { flash.mesh.isVisible = false; } });
 }
 
-export function showTrail(scene, start, end, color = 0xffcc00) {
-  const pts = [start.clone(), end.clone()];
-  const geo = new THREE.BufferGeometry().setFromPoints(pts);
-  const mat = new THREE.LineBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.7,
-    depthWrite: false,
-  });
-  const line = new THREE.Line(geo, mat);
-  scene.add(line);
-  trails.push({ line, age: 0, maxAge: 0.15 });
-
-  gsap.to(mat, {
-    opacity: 0,
-    duration: 0.15,
-    onComplete: () => {
-      scene.remove(line);
-      geo.dispose();
-      mat.dispose();
-    },
-  });
+export function createBulletTrail(scene) {
+  const trailMat = new StandardMaterial("trail", scene);
+  trailMat.diffuseColor = new Color3(1, 0.8, 0);
+  trailMat.emissiveColor = new Color3(1, 0.6, 0);
+  trailMat.disableLighting = true;
+  trailMat.alpha = 0.7;
+  return trailMat;
 }
 
-export function spawnBulletImpact(scene, point, normal) {
-  const count = 5 + Math.floor(Math.random() * 5);
-  for (let i = 0; i < count; i++) {
-    const geo = new THREE.SphereGeometry(0.04, 4, 4);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xffaa44,
-      transparent: true,
-      depthWrite: false,
+export function showTrail(scene, start, end, color = [1, 0.8, 0], mat) {
+  const m = mat || createBulletTrail(scene);
+  m.alpha = 0.8;
+  const points = [start.clone(), end.clone()];
+  const line = MeshBuilder.CreateLines("trailLine", { points, updatable: true }, scene);
+  line.color = new Color3(...color);
+  line.alpha = 0.8;
+
+  gsap.to({ v: 0.8 }, {
+    v: 0, duration: 0.15, onUpdate: function () {
+      line.alpha = this.targets()[0].v;
+    }, onComplete: () => {
+      line.dispose();
+    }
+  });
+  return line;
+}
+
+export function spawnImpact(scene, point, normal = Vector3.Up()) {
+  for (let i = 0; i < 5; i++) {
+    const s = MeshBuilder.CreateSphere("spark", { diameter: 0.06 }, scene);
+    s.position.copyFrom(point);
+    const mat = new StandardMaterial("sparkM", scene);
+    mat.diffuseColor = new Color3(1, 0.5, 0);
+    mat.emissiveColor = new Color3(1, 0.4, 0);
+    mat.disableLighting = true;
+    s.material = mat;
+
+    const vel = new Vector3(
+      (Math.random() - 0.5) * 4 + normal.x * 2,
+      Math.random() * 3 + 1,
+      (Math.random() - 0.5) * 4 + normal.z * 2
+    );
+    const life = 0.35 + Math.random() * 0.2;
+    let age = 0;
+
+    const obs = scene.onBeforeRenderObservable.add(() => {
+      age += 0.016;
+      if (age >= life) {
+        scene.removeMesh(s);
+        scene.onBeforeRenderObservable.remove(obs);
+        s.dispose();
+        mat.dispose();
+        return;
+      }
+      s.position.addInPlace(vel.scale(0.016));
+      vel.y -= 9.8 * 0.016;
+      mat.alpha = 1 - age / life;
     });
-    const spark = new THREE.Mesh(geo, mat);
-    spark.position.copy(point);
-    spark.userData = {
-      velocity: new THREE.Vector3(
-        (Math.random() - 0.5) * 8 + normal.x * 4,
-        Math.random() * 5 + 2,
-        (Math.random() - 0.5) * 8 + normal.z * 4
-      ),
-      life: 0.4 + Math.random() * 0.3,
-      age: 0,
-    };
-    scene.add(spark);
-    particles.push(spark);
   }
 }
 
-export function spawnExplosion(scene, pos, radius) {
-  const count = 15;
-  for (let i = 0; i < count; i++) {
-    const geo = new THREE.SphereGeometry(0.08, 4, 4);
-    const mat = new THREE.MeshBasicMaterial({
-      color: i < 8 ? 0xff6600 : 0xffcc00,
-      transparent: true,
-      depthWrite: false,
-    });
-    const p = new THREE.Mesh(geo, mat);
-    p.position.copy(pos);
-    const v = new THREE.Vector3(
+export function spawnExplosion(scene, pos, radius = 5) {
+  for (let i = 0; i < 15; i++) {
+    const s = MeshBuilder.CreateSphere("exp", { diameter: 0.1 }, scene);
+    s.position.copyFrom(pos);
+    const mat = new StandardMaterial("expM", scene);
+    mat.diffuseColor = i < 8 ? new Color3(1, 0.4, 0) : new Color3(1, 0.8, 0);
+    mat.emissiveColor = mat.diffuseColor;
+    mat.disableLighting = true;
+    s.material = mat;
+
+    const vel = new Vector3(
       (Math.random() - 0.5) * radius * 2,
       Math.random() * radius,
       (Math.random() - 0.5) * radius * 2
     );
-    p.userData = {
-      velocity: v,
-      life: 0.5 + Math.random() * 0.5,
-      age: 0,
-    };
-    scene.add(p);
-    particles.push(p);
+    const life = 0.4 + Math.random() * 0.3;
+    let age = 0;
+    const obs = scene.onBeforeRenderObservable.add(() => {
+      age += 0.016;
+      if (age >= life) {
+        scene.removeMesh(s);
+        scene.onBeforeRenderObservable.remove(obs);
+        s.dispose();
+        mat.dispose();
+        return;
+      }
+      s.position.addInPlace(vel.scale(0.016));
+      vel.y -= 9.8 * 0.016;
+      mat.alpha = 1 - age / life;
+      s.scaling.scaleInPlace(0.99);
+    });
   }
 
   // Flash sphere
-  const flashGeo = new THREE.SphereGeometry(radius * 0.5, 16, 16);
-  const flashMat = new THREE.MeshBasicMaterial({
-    color: 0xffaa00,
-    transparent: true,
-    opacity: 0.8,
-    depthWrite: false,
-  });
-  const flashSphere = new THREE.Mesh(flashGeo, flashMat);
-  flashSphere.position.copy(pos);
-  scene.add(flashSphere);
-
-  gsap.to(flashSphere.scale, {
-    x: 3,
-    y: 3,
-    z: 3,
-    duration: 0.3,
-  });
-  gsap.to(flashMat, {
-    opacity: 0,
-    duration: 0.3,
-    onComplete: () => {
-      scene.remove(flashSphere);
-      flashGeo.dispose();
-      flashMat.dispose();
-    },
-  });
-}
-
-export function updateParticles(dt, scene) {
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.userData.age += dt;
-    if (p.userData.age >= p.userData.life) {
-      p.geometry?.dispose();
-      p.material?.dispose();
-      scene.remove(p);
-      particles.splice(i, 1);
-      continue;
-    }
-    const t = p.userData.age / p.userData.life;
-    p.material.opacity = 1 - t;
-    p.scale.setScalar(1 - t * 0.7);
-    if (p.userData.velocity) {
-      p.position.x += p.userData.velocity.x * dt;
-      p.position.y += p.userData.velocity.y * dt;
-      p.position.z += p.userData.velocity.z * dt;
-      p.userData.velocity.y -= 9.8 * dt;
-    }
-  }
-}
-
-export function cleanupEffects(scene) {
-  for (const p of particles) {
-    p.geometry?.dispose();
-    p.material?.dispose();
-    scene.remove(p);
-  }
-  particles.length = 0;
-
-  for (const t of trails) {
-    t.line.geometry?.dispose();
-    t.line.material?.dispose();
-    scene.remove(t.line);
-  }
-  trails.length = 0;
+  const flashSphere = MeshBuilder.CreateSphere("flashS", { diameter: radius }, scene);
+  flashSphere.position.copyFrom(pos);
+  const fm = new StandardMaterial("fsMat", scene);
+  fm.diffuseColor = new Color3(1, 0.7, 0);
+  fm.emissiveColor = new Color3(1, 0.5, 0);
+  fm.disableLighting = true;
+  fm.alpha = 0.6;
+  flashSphere.material = fm;
+  gsap.to(fm, { alpha: 0, duration: 0.3 });
+  gsap.to(flashSphere.scaling, { x: 3, y: 3, z: 3, duration: 0.3, onComplete: () => { flashSphere.dispose(); fm.dispose(); } });
 }
