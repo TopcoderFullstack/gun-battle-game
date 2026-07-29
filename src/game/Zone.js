@@ -40,7 +40,7 @@ export class ZoneManager {
     this.visualRing.position.y = 0.5;
     this.scene.add(this.visualRing);
 
-    // Outer dome (translucent)
+    // Outer boundary wall (simple transparent ring)
     const domeGeo = new THREE.CylinderGeometry(
       MAP_HALF + 20,
       MAP_HALF + 20,
@@ -49,30 +49,10 @@ export class ZoneManager {
       1,
       true
     );
-    const domeMat = new THREE.ShaderMaterial({
-      uniforms: {
-        radius: { value: this.currentRadius },
-        center: { value: new THREE.Vector2() },
-      },
-      vertexShader: `
-        varying vec2 vPos;
-        void main() {
-          vec4 wp = modelMatrix * vec4(position, 1.0);
-          vPos = wp.xz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        varying vec2 vPos;
-        uniform float radius;
-        uniform vec2 center;
-        void main() {
-          float dist = distance(vPos, center);
-          float inZone = dist < radius ? 0.0 : 0.7;
-          gl_FragColor = vec4(0.2, 0.3, 1.0, inZone);
-        }
-      `,
+    const domeMat = new THREE.MeshBasicMaterial({
+      color: 0x3366ff,
       transparent: true,
+      opacity: 0.12,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
@@ -117,7 +97,6 @@ export class ZoneManager {
       this.visualRing.scale.setScalar(
         this.currentRadius / MAP_HALF
       );
-      this.dome.material.uniforms.radius.value = this.currentRadius;
 
       if (t >= 1) {
         this.shrinking = false;

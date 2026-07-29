@@ -144,9 +144,11 @@ class Game {
     // Clean up previous game
     cleanupEffects(scene);
     this.removeAllNPCs();
+    const toRemove = [];
     scene.children.forEach((c) => {
-      if (c.name === "deathLoot" || c.name === "deathLootGlow") scene.remove(c);
+      if (c.name === "deathLoot" || c.name === "deathLootGlow") toRemove.push(c);
     });
+    toRemove.forEach((c) => scene.remove(c));
 
     // Reset player
     this.playerHP = this.playerMaxHP;
