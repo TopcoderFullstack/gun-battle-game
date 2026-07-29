@@ -67,6 +67,8 @@ export function buildWorld(scene, shadowGen) {
 
   // Terrain (ground plane with gentle hills)
   const ground = MeshBuilder.CreateGround("ground", { width: MAP_SIZE + 40, height: MAP_SIZE + 40, subdivisions: 64 }, scene);
+  ground.checkCollisions = true;
+  ground.isPickable = false;
   const groundMat = new StandardMaterial("groundMat", scene);
   groundMat.diffuseColor = new Color3(0.35, 0.48, 0.23);
   groundMat.specularColor = Color3.Black();
@@ -193,6 +195,8 @@ function addWallBox(scene, name, x, y, z, w, h, d, mat, shadowGen, _scene, walls
   box.position.set(x, y, z);
   box.material = mat;
   box.receiveShadows = true;
+  box.checkCollisions = true;
+  box.isPickable = false;
   shadowGen.addShadowCaster(box);
   new PhysicsAggregate(box, PhysicsShapeType.BOX, { mass: 0, friction: 0.6 }, scene);
 
