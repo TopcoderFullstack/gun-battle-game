@@ -94,6 +94,7 @@ function setupGUI() {
   overlay = createRect("overlay", "100%", "100%", "#000000cc", 1, "0px", "0px");
   overlay.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
   overlay.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+  overlay.isPointerBlocker = true;
 
   const title = createText("otitle", "BATTLE ROYALE 3D", "-40px", "0px", "white", 48);
   title.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
@@ -232,7 +233,7 @@ async function startGame() {
   aliveNPCs = 0;
 
   overlay.alpha = 0;
-  overlay.isVisible = false;
+  overlay.isPointerBlocker = false;
 
   // Spawn NPCs
   const count = 12;
@@ -457,7 +458,7 @@ function gameOver() {
   gameState = "gameover";
   engine.exitPointerlock();
   overlay.alpha = 1;
-  overlay.isVisible = true;
+  overlay.isPointerBlocker = true;
   // Update overlay title text
   const titleBlock = guiTexture.getControlByName("otitle");
   if (titleBlock) titleBlock.text = "WASTED - GAME OVER";
