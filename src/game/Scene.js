@@ -10,7 +10,9 @@ export const HALF = MAP_SIZE / 2;
 export let havokPlugin = null;
 
 export async function initPhysics(scene) {
-  const havokInstance = await HavokPhysics();
+  const havokInstance = await HavokPhysics({
+    locateFile: (url) => `/havok/${url}`,
+  });
   havokPlugin = new HavokPlugin(true, havokInstance);
   scene.enablePhysics(new Vector3(0, -20, 0), havokPlugin);
   return havokPlugin;
