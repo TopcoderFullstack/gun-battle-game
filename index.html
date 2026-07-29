@@ -1,76 +1,71 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🔫 枪战之王 - Gun Battle</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GUN BATTLE 3D - 枪战</title>
+  <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
-  <div id="game-container">
-    <canvas id="gameCanvas"></canvas>
+  <div id="app">
+    <canvas id="game-canvas"></canvas>
 
     <!-- HUD -->
     <div id="hud">
       <div id="hud-top">
         <div class="hud-item">
-          <span class="hud-label">❤️ 血量 HP</span>
-          <div class="hud-bar-bg"><div id="hp-bar" class="hud-bar hp"></div></div>
+          <div class="hud-bar-bg">
+            <div id="hp-bar" class="hud-bar hp"></div>
+          </div>
           <span id="hp-text">100</span>
         </div>
         <div class="hud-item">
-          <span class="hud-label">🎯 击杀 Kills</span>
-          <span id="kills-text" class="hud-value">0</span>
+          <span class="hud-label">KILLS</span>
+          <span id="kills-text">0</span>
         </div>
         <div class="hud-item">
-          <span class="hud-label">🌊 波次 Wave</span>
-          <span id="wave-text" class="hud-value">1</span>
-        </div>
-        <div class="hud-item">
-          <span class="hud-label">⭐ 得分 Score</span>
-          <span id="score-text" class="hud-value">0</span>
+          <span class="hud-label">SCORE</span>
+          <span id="score-text">0</span>
         </div>
       </div>
 
-      <div id="weapon-panel">
-        <div class="weapon-slot active" data-weapon="0">
-          <span class="weapon-key">1</span>
-          <span class="weapon-name">手枪 Pistol</span>
-          <span id="ammo-0" class="weapon-ammo">∞</span>
-        </div>
-        <div class="weapon-slot" data-weapon="1">
-          <span class="weapon-key">2</span>
-          <span class="weapon-name">霰弹 Shotgun</span>
-          <span id="ammo-1" class="weapon-ammo">30</span>
-        </div>
-        <div class="weapon-slot" data-weapon="2">
-          <span class="weapon-key">3</span>
-          <span class="weapon-name">步枪 Rifle</span>
-          <span id="ammo-2" class="weapon-ammo">120</span>
-        </div>
+      <div id="weapon-hud">
+        <span id="weapon-name">PISTOL</span>
+        <span id="ammo-text" class="ammo">∞</span>
       </div>
+
+      <div id="crosshair">
+        <span class="ch-line ch-top"></span>
+        <span class="ch-line ch-bottom"></span>
+        <span class="ch-line ch-left"></span>
+        <span class="ch-line ch-right"></span>
+        <span class="ch-dot"></span>
+      </div>
+
+      <div id="damage-flash"></div>
     </div>
 
-    <!-- 开始/结束覆盖层 Start/Game Over Overlay -->
+    <!-- Overlay -->
     <div id="overlay">
-      <div id="overlay-content">
-        <h1 id="overlay-title">🔫 枪战之王</h1>
-        <p id="overlay-sub">俯视角射击 · Top-Down Shooter</p>
-        <div id="overlay-controls">
-          <p><kbd>W A S D</kbd> 移动 Move</p>
-          <p><kbd>鼠标 Mouse</kbd> 瞄准射击 Aim & Shoot</p>
-          <p><kbd>1 2 3</kbd> 切换武器 Switch Weapon</p>
+      <div id="overlay-box">
+        <h1>GUN BATTLE 3D</h1>
+        <p class="sub">第一人称射击 · FPS Arena</p>
+        <div class="controls">
+          <p><kbd>WASD</kbd> 移动 Move</p>
+          <p><kbd>Mouse</kbd> 瞄准 Aim</p>
+          <p><kbd>Click</kbd> 射击 Shoot</p>
+          <p><kbd>1 2</kbd> 切换武器 Switch</p>
           <p><kbd>R</kbd> 换弹 Reload</p>
-          <p><kbd>空格 Space</kbd> 闪避 Dodge</p>
+          <p><kbd>Space</kbd> 跳跃 Jump</p>
         </div>
-        <button id="start-btn">开始游戏 START</button>
+        <button id="start-btn">START GAME</button>
       </div>
     </div>
 
-    <!-- 迷你地图 Mini-map -->
-    <canvas id="minimap"></canvas>
+    <div id="reload-indicator">RELOADING...</div>
+    <div id="hit-marker">✕</div>
   </div>
 
-  <script src="game.js"></script>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
