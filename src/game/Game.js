@@ -143,7 +143,7 @@ class Game {
   startGame() {
     // Clean up previous game
     cleanupEffects(scene);
-    removeAllNPCs();
+    this.removeAllNPCs();
     scene.children.forEach((c) => {
       if (c.name === "deathLoot" || c.name === "deathLootGlow") scene.remove(c);
     });

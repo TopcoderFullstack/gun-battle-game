@@ -32,6 +32,7 @@ export function createSky(scene) {
       time: { value: 0 },
     },
     vertexShader: `
+      attribute vec3 color;
       varying vec3 vColor;
       varying vec3 vPos;
       void main() {
