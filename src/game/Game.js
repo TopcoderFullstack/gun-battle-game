@@ -45,8 +45,11 @@ function setupGUI() {
     t.fontFamily = "monospace";
     t.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     t.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    if (parent) t.parent = parent;
-    guiTexture.addControl(t);
+    if (parent) {
+      parent.addControl(t);
+    } else {
+      guiTexture.addControl(t);
+    }
     return t;
   };
 
@@ -99,7 +102,7 @@ function setupGUI() {
   const title = createText("otitle", "BATTLE ROYALE 3D", "-40px", "0px", "white", 48);
   title.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
   title.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-  guiTexture.addControl(title);
+  title.parent = overlay;
 
   const subs = [
     ["WASD - Move", "-35px"],
@@ -115,7 +118,7 @@ function setupGUI() {
     const s = createText("ctrl_" + txt, txt, top, "0px", "#aaa", 14);
     s.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     s.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    guiTexture.addControl(s);
+    s.parent = overlay;
   }
 
   startBtn = Button.CreateSimpleButton("startBtn", "START GAME");
@@ -128,7 +131,7 @@ function setupGUI() {
   startBtn.fontSize = 22;
   startBtn.fontFamily = "monospace";
   startBtn.thickness = 0;
-  guiTexture.addControl(startBtn);
+  startBtn.parent = overlay;
 
   startBtn.onPointerClickObservable.add(() => {
     if (gameState === "menu" || gameState === "gameover") startGame();
