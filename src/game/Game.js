@@ -1,7 +1,7 @@
 import { Engine } from "@babylonjs/core";
 import { Vector3, Ray, Color3, MeshBuilder, StandardMaterial } from "@babylonjs/core";
 import { UniversalCamera } from "@babylonjs/core";
-import { AdvancedDynamicTexture, TextBlock, Rectangle, Control, Button } from "@babylonjs/gui";
+import { AdvancedDynamicTexture, TextBlock, Rectangle, Control } from "@babylonjs/gui";
 import gsap from "gsap";
 
 import { createSceneBase, buildWorld, checkWallCollision, HALF, getBuildings, initPhysics } from "./Scene.js";
@@ -26,116 +26,137 @@ let slot1Text, slot2Text;
 function setupGUI() {
   guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
 
-  const createRect = (name, w, h, color, alpha, top, left, parent = null) => {
-    const r = new Rectangle(name);
-    r.width = w; r.height = h;
-    r.background = color; r.alpha = alpha;
-    r.top = top; r.left = left;
-    r.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    r.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    if (parent) r.parent = parent;
-    guiTexture.addControl(r);
-    return r;
-  };
-
-  const createText = (name, text, top, left, color = "white", size = 14, parent = null) => {
-    const t = new TextBlock(name, text);
-    t.top = top; t.left = left;
-    t.color = color; t.fontSize = size;
-    t.fontFamily = "monospace";
-    t.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    t.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    if (parent) {
-      parent.addControl(t);
-    } else {
-      guiTexture.addControl(t);
-    }
-    return t;
-  };
-
   // HP bar
-  const hpBg = createRect("hpBg", "200px", "20px", "#00000066", 0.8, "15px", "20px");
-  hpBar = createRect("hpBar", "196px", "16px", "#44ff44", 1, "17px", "22px");
-  hpText = createText("hpText", "100", "15px", "230px", "white", 14);
+  const hpBg = new Rectangle("hpBg");
+  hpBg.width = "200px"; hpBg.height = "20px";
+  hpBg.background = "#00000066"; hpBg.alpha = 0.8;
+  hpBg.top = "15px"; hpBg.left = "20px";
+  hpBg.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+  hpBg.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  guiTexture.addControl(hpBg);
 
-  killsText = createText("kills", "Kills: 0", "45px", "20px", "#ccc", 13);
-  scoreText = createText("score", "Score: 0", "65px", "20px", "#ccc", 13);
+  hpBar = new Rectangle("hpBar");
+  hpBar.width = "196px"; hpBar.height = "16px";
+  hpBar.background = "#44ff44"; hpBar.alpha = 1;
+  hpBar.top = "17px"; hpBar.left = "22px";
+  hpBar.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+  hpBar.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  guiTexture.addControl(hpBar);
 
-  weaponText = createText("weapon", "FIST", "-60px", "-100px", "white", 32);
+  hpText = new TextBlock("hpText", "100");
+  hpText.top = "15px"; hpText.left = "230px";
+  hpText.color = "white"; hpText.fontSize = 14;
+  hpText.fontFamily = "monospace";
+  hpText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+  hpText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  guiTexture.addControl(hpText);
+
+  killsText = new TextBlock("kills", "Kills: 0");
+  killsText.top = "45px"; killsText.left = "20px";
+  killsText.color = "#ccc"; killsText.fontSize = 13;
+  killsText.fontFamily = "monospace";
+  killsText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+  killsText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  guiTexture.addControl(killsText);
+
+  scoreText = new TextBlock("score", "Score: 0");
+  scoreText.top = "65px"; scoreText.left = "20px";
+  scoreText.color = "#ccc"; scoreText.fontSize = 13;
+  scoreText.fontFamily = "monospace";
+  scoreText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+  scoreText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  guiTexture.addControl(scoreText);
+
+  weaponText = new TextBlock("weapon", "FIST");
+  weaponText.top = "-60px"; weaponText.left = "-100px";
+  weaponText.color = "white"; weaponText.fontSize = 32;
+  weaponText.fontFamily = "monospace";
+  weaponText.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
   weaponText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-  ammoText = createText("ammo", "∞", "-30px", "-100px", "#ffcc00", 20);
+  guiTexture.addControl(weaponText);
+
+  ammoText = new TextBlock("ammo", "∞");
+  ammoText.top = "-30px"; ammoText.left = "-100px";
+  ammoText.color = "#ffcc00"; ammoText.fontSize = 20;
+  ammoText.fontFamily = "monospace";
+  ammoText.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
   ammoText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+  guiTexture.addControl(ammoText);
 
-  // Slots
-  slot1Text = createText("slot1", "1: --", "-100px", "20px", "#888", 12);
-  slot2Text = createText("slot2", "2: --", "-115px", "20px", "#888", 12);
+  slot1Text = new TextBlock("slot1", "1: --");
+  slot1Text.top = "-100px"; slot1Text.left = "20px";
+  slot1Text.color = "#888"; slot1Text.fontSize = 12;
+  slot1Text.fontFamily = "monospace";
+  slot1Text.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+  slot1Text.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  guiTexture.addControl(slot1Text);
 
-  // Zone
-  zonePhaseText = createText("zp", "Phase 1/7", "15px", "0px", "#8899ff", 11);
+  slot2Text = new TextBlock("slot2", "2: --");
+  slot2Text.top = "-115px"; slot2Text.left = "20px";
+  slot2Text.color = "#888"; slot2Text.fontSize = 12;
+  slot2Text.fontFamily = "monospace";
+  slot2Text.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+  slot2Text.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  guiTexture.addControl(slot2Text);
+
+  zonePhaseText = new TextBlock("zp", "Phase 1/7");
+  zonePhaseText.top = "15px"; zonePhaseText.left = "0px";
+  zonePhaseText.color = "#8899ff"; zonePhaseText.fontSize = 11;
+  zonePhaseText.fontFamily = "monospace";
+  zonePhaseText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
   zonePhaseText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  zoneTimerText = createText("zt", "30s", "30px", "0px", "#ffcc00", 18);
+  guiTexture.addControl(zonePhaseText);
+
+  zoneTimerText = new TextBlock("zt", "30s");
+  zoneTimerText.top = "30px"; zoneTimerText.left = "0px";
+  zoneTimerText.color = "#ffcc00"; zoneTimerText.fontSize = 18;
+  zoneTimerText.fontFamily = "monospace";
+  zoneTimerText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
   zoneTimerText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+  guiTexture.addControl(zoneTimerText);
 
-  aliveText = createText("alive", "Alive: 13", "15px", "-150px", "#ff8844", 13);
+  aliveText = new TextBlock("alive", "Alive: 13");
+  aliveText.top = "15px"; aliveText.left = "-100px";
+  aliveText.color = "#ff8844"; aliveText.fontSize = 13;
+  aliveText.fontFamily = "monospace";
+  aliveText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
   aliveText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+  guiTexture.addControl(aliveText);
 
-  reloadText = createText("reload", "RELOADING...", "100px", "0px", "#ffcc00", 18);
-  reloadText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+  reloadText = new TextBlock("reload", "RELOADING...");
+  reloadText.top = "100px"; reloadText.left = "0px";
+  reloadText.color = "#ffcc00"; reloadText.fontSize = 18;
+  reloadText.fontFamily = "monospace";
   reloadText.alpha = 0;
+  reloadText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+  reloadText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+  guiTexture.addControl(reloadText);
 
-  hitMarker = createText("hit", "✕", "0px", "0px", "#ff4444", 40);
-  hitMarker.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  hitMarker.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+  hitMarker = new TextBlock("hit", "✕");
+  hitMarker.color = "#ff4444"; hitMarker.fontSize = 40;
+  hitMarker.fontFamily = "monospace";
   hitMarker.alpha = 0;
+  hitMarker.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+  hitMarker.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+  guiTexture.addControl(hitMarker);
 
-  dmgFlash = createRect("dmgFlash", "100%", "100%", "#ff0000", 0, "0px", "0px");
-  dmgFlash.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  dmgFlash.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+  dmgFlash = new Rectangle("dmgFlash");
+  dmgFlash.width = "100%"; dmgFlash.height = "100%";
+  dmgFlash.background = "#ff0000"; dmgFlash.alpha = 0;
   dmgFlash.isPointerBlocker = false;
+  dmgFlash.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+  dmgFlash.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+  guiTexture.addControl(dmgFlash);
 
-  // Overlay screen
-  overlay = createRect("overlay", "100%", "100%", "#000000cc", 1, "0px", "0px");
-  overlay.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  overlay.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-  overlay.isPointerBlocker = true;
-
-  const title = createText("otitle", "BATTLE ROYALE 3D", "-40px", "0px", "white", 48);
-  title.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  title.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-  title.parent = overlay;
-
-  const subs = [
-    ["WASD - Move", "-35px"],
-    ["Mouse - Look & Shoot", "-20px"],
-    ["1/2/Scroll - Switch Weapon", "-5px"],
-    ["R - Reload", "10px"],
-    ["E - Pickup / Open Chest", "25px"],
-    ["F - Bandage Heal", "40px"],
-    ["G - Grenade", "55px"],
-    ["Space - Jump", "70px"],
-  ];
-  for (const [txt, top] of subs) {
-    const s = createText("ctrl_" + txt, txt, top, "0px", "#aaa", 14);
-    s.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    s.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    s.parent = overlay;
+  // HTML button handler
+  const htmlStartBtn = document.getElementById("start-btn");
+  if (htmlStartBtn) {
+    htmlStartBtn.addEventListener("click", () => {
+      if (gameState === "menu" || gameState === "gameover") startGame();
+    });
   }
 
-  startBtn = Button.CreateSimpleButton("startBtn", "START GAME");
-  startBtn.width = "250px"; startBtn.height = "50px";
-  startBtn.top = "110px";
-  startBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-  startBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-  startBtn.color = "white";
-  startBtn.background = "#cc0000";
-  startBtn.fontSize = 22;
-  startBtn.fontFamily = "monospace";
-  startBtn.thickness = 0;
-  startBtn.parent = overlay;
-
-  startBtn.onPointerClickObservable.add(() => {
-    if (gameState === "menu" || gameState === "gameover") startGame();
-  });
+  overlay = document.getElementById("overlay");
 }
 
 function updateHUD() {
@@ -235,8 +256,7 @@ async function startGame() {
   isShooting = false;
   aliveNPCs = 0;
 
-  overlay.alpha = 0;
-  overlay.isPointerBlocker = false;
+  if (overlay) overlay.classList.add("hidden");
 
   // Spawn NPCs
   const count = 12;
@@ -460,11 +480,11 @@ function loop() {
 function gameOver() {
   gameState = "gameover";
   engine.exitPointerlock();
-  overlay.alpha = 1;
-  overlay.isPointerBlocker = true;
-  // Update overlay title text
-  const titleBlock = guiTexture.getControlByName("otitle");
-  if (titleBlock) titleBlock.text = "WASTED - GAME OVER";
+  if (overlay) overlay.classList.remove("hidden");
+  const titleEl = document.getElementById("overlay-title");
+  if (titleEl) titleEl.textContent = "WASTED - GAME OVER";
+  const startBtnEl = document.getElementById("start-btn");
+  if (startBtnEl) startBtnEl.textContent = "RESTART";
 }
 
 function rayAABB(origin, dir, box) {
