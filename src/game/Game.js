@@ -182,18 +182,13 @@ function updateHUD() {
 }
 
 async function init() {
-  // Create engine with full window resolution
-  engine = new Engine(null, true, {
-    preserveDrawingBuffer: true,
-    stencil: true,
-  });
-  
-  // Attach engine canvas to the page
-  const canvas = engine.getRenderingCanvas();
+  // Create canvas
+  const canvas = document.createElement("canvas");
   canvas.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;outline:none;";
   document.body.prepend(canvas);
   
-  engine.resize();
+  // Create engine
+  engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
 
   // Create scene base (no physics yet)
   const result = createSceneBase(engine);
