@@ -196,16 +196,16 @@ export function createTrees(scene, walls) {
 }
 
 const buildings = [
-  { x: 0, z: 0, w: 30, d: 24, h: 14, floors: 3, color: 0x998877, name: "Hotel" },
-  { x: 45, z: -35, w: 20, d: 16, h: 10, floors: 2, color: 0x8899aa, name: "Office" },
-  { x: -40, z: 30, w: 18, d: 14, h: 10, floors: 2, color: 0xaabbaa, name: "Apartments" },
-  { x: 35, z: 40, w: 16, d: 12, h: 8, floors: 1, color: 0xccaa88, name: "Warehouse" },
-  { x: -50, z: -40, w: 24, d: 18, h: 12, floors: 2, color: 0x9988aa, name: "Hospital" },
-  { x: -20, z: -50, w: 14, d: 12, h: 8, floors: 1, color: 0xbbaa99, name: "Gas Station" },
-  { x: 55, z: 10, w: 12, d: 10, h: 6, floors: 1, color: 0xaabb99, name: "House A" },
-  { x: -55, z: -10, w: 12, d: 10, h: 6, floors: 1, color: 0xbbaabb, name: "House B" },
-  { x: 10, z: 60, w: 14, d: 10, h: 6, floors: 1, color: 0xccbbaa, name: "House C" },
-  { x: -10, z: -60, w: 16, d: 12, h: 8, floors: 1, color: 0xaaccbb, name: "Shack" },
+  { x: 0, z: 0, w: 30, d: 24, h: 14, floors: 3, color: 0x998877, name: "Hotel", doors: [{ offset: -6 }, { offset: 6 }] },
+  { x: 45, z: -35, w: 20, d: 16, h: 10, floors: 2, color: 0x8899aa, name: "Office", doors: [{ offset: 0 }, { offset: 4 }] },
+  { x: -40, z: 30, w: 18, d: 14, h: 10, floors: 2, color: 0xaabbaa, name: "Apartments", doors: [{ offset: 3 }] },
+  { x: 35, z: 40, w: 16, d: 12, h: 8, floors: 1, color: 0xccaa88, name: "Warehouse", doors: [{ offset: 0 }, { offset: -4 }] },
+  { x: -50, z: -40, w: 24, d: 18, h: 12, floors: 2, color: 0x9988aa, name: "Hospital", doors: [{ offset: 4 }, { offset: -5 }] },
+  { x: -20, z: -50, w: 14, d: 12, h: 8, floors: 1, color: 0xbbaa99, name: "Gas Station", doors: [{ offset: 0 }] },
+  { x: 55, z: 10, w: 12, d: 10, h: 6, floors: 1, color: 0xaabb99, name: "House A", doors: [{ offset: -3 }] },
+  { x: -55, z: -10, w: 12, d: 10, h: 6, floors: 1, color: 0xbbaabb, name: "House B", doors: [{ offset: 2 }] },
+  { x: 10, z: 60, w: 14, d: 10, h: 6, floors: 1, color: 0xccbbaa, name: "House C", doors: [{ offset: 0 }] },
+  { x: -10, z: -60, w: 16, d: 12, h: 8, floors: 1, color: 0xaaccbb, name: "Shack", doors: [{ offset: 0 }, { offset: 3 }] },
 ];
 
 function isNearBuilding(tx, tz, minDist) {
@@ -221,180 +221,202 @@ function isNearBuilding(tx, tz, minDist) {
 
 export function createBuildings(scene) {
   const buildWalls = [];
-  const floorGeo = new THREE.PlaneGeometry(1, 1);
-  const wallGeo = new THREE.BoxGeometry(1, 1, 1);
-  const roofGeo = new THREE.ConeGeometry(1, 1, 4);
+  const wallThick = 0.4;
+  const doorWidth = 2.8;
 
   for (const b of buildings) {
     const group = new THREE.Group();
     group.position.set(b.x, 0, b.z);
 
+    const hw = b.w / 2;
+    const hd = b.d / 2;
+    const wallH = b.h;
+
+    // Materials
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: b.color, roughness: 0.7, metalness: 0.05,
+    });
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x555555, roughness: 0.85,
+    });
+    const roofMat = new THREE.MeshStandardMaterial({
+      color: 0x553322, roughness: 0.8,
+    });
+    const interiorMat = new THREE.MeshStandardMaterial({
+      color: 0xccccbb, roughness: 0.8, metalness: 0,
+    });
+    const winMat = new THREE.MeshStandardMaterial({
+      color: 0x8899dd, roughness: 0.2, metalness: 0.6, side: THREE.DoubleSide,
+    });
+
     // Floor
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(b.w, b.d),
-      new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 })
-    );
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(b.w, b.d), floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0.01;
     floor.receiveShadow = true;
     group.add(floor);
 
-    // Walls
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: b.color,
-      roughness: 0.7,
-      metalness: 0.05,
-    });
-    const wallThick = 0.5;
-
-    // Front wall
-    const fw = new THREE.Mesh(
-      new THREE.BoxGeometry(b.w, b.h, wallThick),
-      wallMat
-    );
-    fw.position.set(0, b.h / 2, -b.d / 2);
-    fw.castShadow = true;
-    fw.receiveShadow = true;
-    group.add(fw);
-
-    // Back wall
-    const bw = new THREE.Mesh(
-      new THREE.BoxGeometry(b.w, b.h, wallThick),
-      wallMat
-    );
-    bw.position.set(0, b.h / 2, b.d / 2);
-    bw.castShadow = true;
-    bw.receiveShadow = true;
-    group.add(bw);
-
-    // Left wall
-    const lw = new THREE.Mesh(
-      new THREE.BoxGeometry(wallThick, b.h, b.d),
-      wallMat
-    );
-    lw.position.set(-b.w / 2, b.h / 2, 0);
-    lw.castShadow = true;
-    lw.receiveShadow = true;
-    group.add(lw);
-
-    // Right wall
-    const rw = new THREE.Mesh(
-      new THREE.BoxGeometry(wallThick, b.h, b.d),
-      wallMat
-    );
-    rw.position.set(b.w / 2, b.h / 2, 0);
-    rw.castShadow = true;
-    rw.receiveShadow = true;
-    group.add(rw);
-
-    // Interior walls for rooms
-    const interiorMat = new THREE.MeshStandardMaterial({
-      color: 0xddddcc,
-      roughness: 0.8,
-      metalness: 0,
-    });
-    for (let fi = 1; fi < b.floors; fi++) {
-      const interWall = new THREE.Mesh(
-        new THREE.BoxGeometry(b.w - 2, 0.3, b.d / 3),
-        interiorMat
-      );
-      interWall.position.set(0, b.h * (fi / b.floors), (Math.random() - 0.5) * b.d * 0.5);
-      interWall.castShadow = true;
-      interWall.receiveShadow = true;
-      group.add(interWall);
+    // Helper: create a wall segment
+    function addWallPiece(x, z, w, d, h, mat, castShadow = true) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(x, h / 2, z);
+      if (castShadow) { mesh.castShadow = true; mesh.receiveShadow = true; }
+      group.add(mesh);
+      return mesh;
     }
 
-    // Roof
-    const roof = new THREE.Mesh(
-      new THREE.ConeGeometry(Math.max(b.w, b.d) * 0.75, 3, 4),
-      new THREE.MeshStandardMaterial({ color: 0x553322, roughness: 0.8 })
-    );
-    roof.position.y = b.h + 1.5;
-    roof.rotation.y = Math.PI / 4;
-    roof.castShadow = true;
-    group.add(roof);
+    // Helper: add collision box
+    function addCollision(cx, cz, cw, cd, ch) {
+      buildWalls.push({
+        minX: b.x + cx - cw / 2,
+        maxX: b.x + cx + cw / 2,
+        minZ: b.z + cz - cd / 2,
+        maxZ: b.z + cz + cd / 2,
+        minY: 0,
+        maxY: ch,
+      });
+    }
 
-    // Windows (decorative)
-    const winGeo = new THREE.PlaneGeometry(1.5, 2);
-    const winMat = new THREE.MeshStandardMaterial({
-      color: 0x8899cc,
-      roughness: 0.2,
-      metalness: 0.8,
-      side: THREE.DoubleSide,
-    });
-    for (let side = 0; side < 4; side++) {
-      const rotY = (side * Math.PI) / 2;
-      const isFront = side === 0 || side === 2;
-      const length = isFront ? b.w : b.d;
-      const offset = isFront ? b.d / 2 + 0.02 : b.w / 2 + 0.02;
-      for (let wi = 0; wi < Math.floor((length - 4) / 3); wi++) {
-        const win = new THREE.Mesh(winGeo, winMat);
-        win.position.set(
-          (isFront ? -length / 2 + 3 + wi * 3 : 0) * (side === 1 ? -1 : 1) * (isFront ? 1 : 1) * (side === 3 ? -1 : 1) * (isFront ? 1 : 0),
-          b.h * 0.5,
-          (isFront ? 0 : -b.d / 2 + 3 + wi * 3) * (side === 0 ? 1 : -1) * (!isFront ? 1 : 0)
-        );
-        // Simplify: just place some windows on front and back
-        if (side === 0 || side === 2) {
-          const wx = -length / 2 + 3 + wi * 3;
-          win.position.set(wx, b.h * 0.5, offset * (side === 0 ? 1 : -1));
-          group.add(win);
-        }
+    // --- Front wall (with door opening) ---
+    const doorOffset = b.doors?.[0]?.offset || 0;
+    const leftW = hw + doorOffset - doorWidth / 2;
+    const rightW = hw - doorOffset - doorWidth / 2;
+
+    if (leftW > 0.3) {
+      addWallPiece(-hw + leftW / 2, -hd, leftW, wallThick, wallH, wallMat);
+      addCollision(-hw + leftW / 2, -hd, leftW, wallThick, wallH);
+    }
+    if (rightW > 0.3) {
+      addWallPiece(hw - rightW / 2, -hd, rightW, wallThick, wallH, wallMat);
+      addCollision(hw - rightW / 2, -hd, rightW, wallThick, wallH);
+    }
+    // Door top beam
+    addWallPiece(doorOffset, -hd, doorWidth, wallThick * 0.6, 0.5, wallMat, false);
+    addWallPiece(doorOffset, -hd, doorWidth, wallThick * 0.6, 0.5, wallMat, false);
+    // Door frame sides
+    addWallPiece(doorOffset - doorWidth / 2, -hd, wallThick * 0.5, wallThick, wallH, wallMat, false);
+    addWallPiece(doorOffset + doorWidth / 2, -hd, wallThick * 0.5, wallThick, wallH, wallMat, false);
+    // Top beam collision
+    addCollision(doorOffset, -hd, doorWidth, wallThick * 0.6, wallH);
+
+    // --- Back wall (with optional back door) ---
+    const hasBackDoor = b.doors?.length > 1;
+    const backDoorOff = b.doors?.[1]?.offset || 0;
+    if (hasBackDoor) {
+      const blW = hw + backDoorOff - doorWidth / 2;
+      const brW = hw - backDoorOff - doorWidth / 2;
+      if (blW > 0.3) {
+        addWallPiece(-hw + blW / 2, hd, blW, wallThick, wallH, wallMat);
+        addCollision(-hw + blW / 2, hd, blW, wallThick, wallH);
+      }
+      if (brW > 0.3) {
+        addWallPiece(hw - brW / 2, hd, brW, wallThick, wallH, wallMat);
+        addCollision(hw - brW / 2, hd, brW, wallThick, wallH);
+      }
+      addCollision(backDoorOff, hd, doorWidth, wallThick * 0.6, wallH);
+    } else {
+      addWallPiece(0, hd, b.w, wallThick, wallH, wallMat);
+      addCollision(0, hd, b.w, wallThick, wallH);
+    }
+
+    // --- Left wall ---
+    addWallPiece(-hw, 0, wallThick, b.d, wallH, wallMat);
+    addCollision(-hw, 0, wallThick, b.d, wallH);
+
+    // --- Right wall ---
+    addWallPiece(hw, 0, wallThick, b.d, wallH, wallMat);
+    addCollision(hw, 0, wallThick, b.d, wallH);
+
+    // --- Interior room dividers ---
+    const numRooms = b.floors || 1;
+    for (let ri = 0; ri < numRooms - 1; ri++) {
+      const rx = (ri + 1) * (b.w / numRooms) - hw;
+      // Wall with gap for passage
+      const gapZ = (Math.random() - 0.5) * b.d * 0.6;
+      const frontW = hd + gapZ - 1.5;
+      const backW = hd - gapZ - 1.5;
+      if (frontW > 0.5) {
+        addWallPiece(rx, -hd + frontW / 2, wallThick * 0.6, frontW, wallH * 0.9, interiorMat);
+        addCollision(rx, -hd + frontW / 2, wallThick * 0.6, frontW, wallH * 0.9);
+      }
+      if (backW > 0.5) {
+        addWallPiece(rx, hd - backW / 2, wallThick * 0.6, backW, wallH * 0.9, interiorMat);
+        addCollision(rx, hd - backW / 2, wallThick * 0.6, backW, wallH * 0.9);
       }
     }
 
-    // Door
-    const doorGeo = new THREE.PlaneGeometry(2, 3);
-    const doorMat = new THREE.MeshStandardMaterial({
-      color: 0x553322,
-      roughness: 0.7,
-      side: THREE.DoubleSide,
-    });
-    const door = new THREE.Mesh(doorGeo, doorMat);
-    door.position.set(0, 1.5, b.d / 2 + 0.03);
-    group.add(door);
+    // --- Interior props: crates, shelves ---
+    const crateGeo = new THREE.BoxGeometry(1.2, 0.8, 0.8);
+    const crateMat = new THREE.MeshStandardMaterial({ color: 0x886644, roughness: 0.7 });
+    for (let ci = 0; ci < 4; ci++) {
+      const crate = new THREE.Mesh(crateGeo, crateMat);
+      crate.position.set(
+        (Math.random() - 0.5) * (b.w - 2),
+        0.4,
+        (Math.random() - 0.5) * (b.d - 2)
+      );
+      crate.castShadow = true;
+      crate.receiveShadow = true;
+      group.add(crate);
+
+      addCollision(crate.position.x, crate.position.z, 1.2, 0.8, 0.8);
+    }
+
+    // --- Windows on front and back walls ---
+    const winGeo = new THREE.PlaneGeometry(1.8, 2.2);
+    const winCount = Math.floor((b.w - 8) / 4);
+    for (let wi = 0; wi < Math.max(winCount, 0); wi++) {
+      const wx = -hw + 4 + wi * 4;
+      if (Math.abs(wx - doorOffset) > doorWidth / 2 + 1.5) {
+        const winF = new THREE.Mesh(winGeo, winMat);
+        winF.position.set(wx, wallH * 0.55, -hd - 0.01);
+        group.add(winF);
+      }
+      if (!hasBackDoor || Math.abs(wx - backDoorOff) > doorWidth / 2 + 1.5) {
+        const winB = new THREE.Mesh(winGeo, winMat);
+        winB.position.set(wx, wallH * 0.55, hd + 0.01);
+        group.add(winB);
+      }
+    }
+
+    // --- Roof ---
+    if (b.floors <= 2) {
+      const roofGeo = new THREE.ConeGeometry(Math.max(b.w, b.d) * 0.7, 3, 4);
+      const roof = new THREE.Mesh(roofGeo, roofMat);
+      roof.position.y = wallH + 1.5;
+      roof.rotation.y = Math.PI / 4;
+      roof.castShadow = true;
+      group.add(roof);
+    } else {
+      // Flat roof for taller buildings
+      const roof = new THREE.Mesh(
+        new THREE.PlaneGeometry(b.w + 1, b.d + 1),
+        roofMat
+      );
+      roof.rotation.x = -Math.PI / 2;
+      roof.position.y = wallH + 0.2;
+      roof.castShadow = true;
+      roof.receiveShadow = true;
+      group.add(roof);
+    }
+
+    // --- Side entrance for larger buildings ---
+    if (b.w > 15 && b.d > 12) {
+      // Add a side door on one side wall - remove part of left wall collision
+      const sideDoorZ = 0;
+      // We can't easily remove collision, but we can add non-colliding visual
+      const sdGeo = new THREE.PlaneGeometry(2, 3);
+      const sdMat = new THREE.MeshStandardMaterial({
+        color: 0x553322, roughness: 0.7, side: THREE.DoubleSide,
+      });
+      const sideDoor = new THREE.Mesh(sdGeo, sdMat);
+      sideDoor.position.set(-hw - 0.42, 1.5, sideDoorZ);
+      group.add(sideDoor);
+    }
 
     scene.add(group);
-
-    // Collision data
-    const hw = b.w / 2;
-    const hd = b.d / 2;
-    // Each wall separately
-    buildWalls.push({
-      minX: b.x - hw,
-      maxX: b.x + hw,
-      minZ: b.z - hd - 0.5,
-      maxZ: b.z - hd + 0.5,
-      minY: 0,
-      maxY: b.h,
-    });
-    buildWalls.push({
-      minX: b.x - hw,
-      maxX: b.x + hw,
-      minZ: b.z + hd - 0.5,
-      maxZ: b.z + hd + 0.5,
-      minY: 0,
-      maxY: b.h,
-    });
-    buildWalls.push({
-      minX: b.x - hw - 0.5,
-      maxX: b.x - hw + 0.5,
-      minZ: b.z - hd,
-      maxZ: b.z + hd,
-      minY: 0,
-      maxY: b.h,
-    });
-    buildWalls.push({
-      minX: b.x + hw - 0.5,
-      maxX: b.x + hw + 0.5,
-      minZ: b.z - hd,
-      maxZ: b.z + hd,
-      minY: 0,
-      maxY: b.h,
-    });
   }
 
-  scene.add(new THREE.AmbientLight(0x88aacc, 0.2));
   return buildWalls;
 }
 
