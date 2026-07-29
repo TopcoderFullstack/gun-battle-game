@@ -182,13 +182,18 @@ function updateHUD() {
 }
 
 async function init() {
-  const canvas = document.getElementById("game-canvas");
-  if (!canvas) {
-    document.body.insertAdjacentHTML("beforeend", '<canvas id="game-canvas"></canvas>');
-    engine = new Engine(document.getElementById("game-canvas"), true);
-  } else {
-    engine = new Engine(canvas, true);
-  }
+  // Create engine with full window resolution
+  engine = new Engine(null, true, {
+    preserveDrawingBuffer: true,
+    stencil: true,
+  });
+  
+  // Attach engine canvas to the page
+  const canvas = engine.getRenderingCanvas();
+  canvas.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;outline:none;";
+  document.body.prepend(canvas);
+  
+  engine.resize();
 
   // Create scene base (no physics yet)
   const result = createSceneBase(engine);
