@@ -32,7 +32,7 @@ const buildings = [
 
 export function getBuildings() { return buildings; }
 
-export function createScene(engine) {
+export function createSceneBase(engine) {
   const scene = new Scene(engine);
   scene.clearColor = new Color3(0.53, 0.6, 0.8);
 
@@ -57,6 +57,11 @@ export function createScene(engine) {
   const shadowGen = new ShadowGenerator(2048, sun);
   shadowGen.useBlurExponentialShadowMap = true;
   shadowGen.blurKernel = 32;
+
+  return { scene, shadowGen };
+}
+
+export function buildWorld(scene, shadowGen) {
 
   // Terrain (ground plane with gentle hills)
   const ground = MeshBuilder.CreateGround("ground", { width: MAP_SIZE + 40, height: MAP_SIZE + 40, subdivisions: 64 }, scene);
@@ -89,7 +94,7 @@ export function createScene(engine) {
   // Create roads
   createRoads(scene);
 
-  return { scene, ground, shadowGen, walls: allWalls };
+  return { ground, walls: allWalls };
 }
 
 function terrainHeight(x, z) {

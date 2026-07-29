@@ -4,7 +4,7 @@ import { UniversalCamera } from "@babylonjs/core";
 import { AdvancedDynamicTexture, TextBlock, Rectangle, Control, Button } from "@babylonjs/gui";
 import gsap from "gsap";
 
-import { createScene, checkWallCollision, terrainH, getBuildings, HALF, initPhysics } from "./Scene.js";
+import { createSceneBase, buildWorld, checkWallCollision, HALF, getBuildings, initPhysics } from "./Scene.js";
 import { WEAPON_DEFS, WEAPON_LIST, Inventory } from "./Weapons.js";
 import { createEnemy, getEnemies, hurtEnemy, updateAI, removeDead } from "./Enemies.js";
 import { ZoneManager } from "./Zone.js";
@@ -165,10 +165,17 @@ async function init() {
     engine = new Engine(canvas, true);
   }
 
-  const result = createScene(engine);
+  // Create scene base (no physics yet)
+  const result = createSceneBase(engine);
   scene = result.scene;
-  walls = result.walls;
   shadowGen = result.shadowGen;
+
+  // Init physics FIRST
+  await initPhysics(scene);
+
+  // Now build physics-dependent world
+  const world = buildWorld(scene, shadowGen);
+  walls = world.walls;
 
   // Camera
   camera = new UniversalCamera("fpsCam", new Vector3(0, 1.6, 5), scene);
@@ -189,9 +196,6 @@ async function init() {
   inventory = new Inventory(scene, camera);
   zone = new ZoneManager(scene);
   muzzleFlash = createMuzzleFlash(scene);
-
-  // Init physics after scene is ready
-  await initPhysics(scene);
 
   // Input
   window.addEventListener("keydown", e => {
