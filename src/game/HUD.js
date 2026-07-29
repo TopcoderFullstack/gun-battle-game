@@ -26,6 +26,8 @@ export class HUD {
       itemMedkit: document.getElementById("item-medkit"),
       itemArmor: document.getElementById("item-armor"),
       aliveCount: document.getElementById("alive-count"),
+      interactPrompt: document.getElementById("interact-prompt"),
+      interactText: document.getElementById("interact-text"),
     };
   }
 
@@ -153,5 +155,14 @@ export class HUD {
 
   setCrosshairVisible(visible) {
     this.elements.crosshair.style.display = visible ? "block" : "none";
+  }
+
+  showInteractPrompt(text) {
+    this.elements.interactText.textContent = text;
+    this.elements.interactPrompt.classList.add("visible");
+  }
+
+  hideInteractPrompt() {
+    this.elements.interactPrompt.classList.remove("visible");
   }
 }

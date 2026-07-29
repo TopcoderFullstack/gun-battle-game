@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createChestModel } from "./Chests.js";
 
 const MAP_S = 400;
 const HALF = MAP_S / 2;
@@ -236,6 +237,9 @@ export function createBuildings(scene) {
     const wallMat = new THREE.MeshStandardMaterial({
       color: b.color, roughness: 0.7, metalness: 0.05,
     });
+    const doorFrameMat = new THREE.MeshStandardMaterial({
+      color: 0x666666, roughness: 0.4, metalness: 0.5,
+    });
     const floorMat = new THREE.MeshStandardMaterial({
       color: 0x555555, roughness: 0.85,
     });
@@ -266,14 +270,14 @@ export function createBuildings(scene) {
     }
 
     // Helper: add collision box
-    function addCollision(cx, cz, cw, cd, ch) {
+    function addCollision(cx, cz, cw, cd, ch, minY = 0) {
       buildWalls.push({
         minX: b.x + cx - cw / 2,
         maxX: b.x + cx + cw / 2,
         minZ: b.z + cz - cd / 2,
         maxZ: b.z + cz + cd / 2,
-        minY: 0,
-        maxY: ch,
+        minY,
+        maxY: minY + ch,
       });
     }
 
@@ -290,14 +294,14 @@ export function createBuildings(scene) {
       addWallPiece(hw - rightW / 2, -hd, rightW, wallThick, wallH, wallMat);
       addCollision(hw - rightW / 2, -hd, rightW, wallThick, wallH);
     }
-    // Door top beam
-    addWallPiece(doorOffset, -hd, doorWidth, wallThick * 0.6, 0.5, wallMat, false);
-    addWallPiece(doorOffset, -hd, doorWidth, wallThick * 0.6, 0.5, wallMat, false);
-    // Door frame sides
-    addWallPiece(doorOffset - doorWidth / 2, -hd, wallThick * 0.5, wallThick, wallH, wallMat, false);
-    addWallPiece(doorOffset + doorWidth / 2, -hd, wallThick * 0.5, wallThick, wallH, wallMat, false);
-    // Top beam collision
-    addCollision(doorOffset, -hd, doorWidth, wallThick * 0.6, wallH);
+    // Door top beam (visual only - no collision)
+    addWallPiece(doorOffset, -hd, doorWidth, wallThick * 0.5, 0.5, wallMat, false);
+    // Top of door frame
+    addWallPiece(doorOffset, -hd, doorWidth + 0.8, 0.3, 0.25, doorFrameMat);
+
+    // Door frame sides (thin, no player collision)
+    addWallPiece(doorOffset - doorWidth / 2, -hd, wallThick * 0.4, wallThick, wallH, doorFrameMat);
+    addWallPiece(doorOffset + doorWidth / 2, -hd, wallThick * 0.4, wallThick, wallH, doorFrameMat);
 
     // --- Back wall (with optional back door) ---
     const hasBackDoor = b.doors?.length > 1;
@@ -313,7 +317,7 @@ export function createBuildings(scene) {
         addWallPiece(hw - brW / 2, hd, brW, wallThick, wallH, wallMat);
         addCollision(hw - brW / 2, hd, brW, wallThick, wallH);
       }
-      addCollision(backDoorOff, hd, doorWidth, wallThick * 0.6, wallH);
+      addCollision(backDoorOff, hd, doorWidth, wallThick * 0.3, wallH, wallH - 0.5);
     } else {
       addWallPiece(0, hd, b.w, wallThick, wallH, wallMat);
       addCollision(0, hd, b.w, wallThick, wallH);
@@ -415,9 +419,21 @@ export function createBuildings(scene) {
     }
 
     scene.add(group);
+
+    // Spawn loot chests inside the building
+    spawnChests(scene, b, buildWalls);
   }
 
   return buildWalls;
+}
+
+function spawnChests(scene, b, buildWalls) {
+  const chestCount = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < chestCount; i++) {
+    const cx = b.x + (Math.random() - 0.5) * (b.w - 3);
+    const cz = b.z + (Math.random() - 0.5) * (b.d - 3);
+    createChestModel(scene, cx, cz);
+  }
 }
 
 export function createTerrain(scene) {

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import gsap from "gsap";
 import { createSky, createClouds, createTrees, createBuildings, createTerrain, getMapHalf, setAllWalls, checkWallCollision } from "./Scene.js";
 import { spawnLoot, getPickups, updatePickups } from "./Pickups.js";
+import { createChestModel, getChests, findNearestChest, openChest } from "./Chests.js";
 import { Inventory } from "./Inventory.js";
 import { createEnemyModel, getEnemies, hurtEnemy, removeDeadEnemies } from "./Enemy.js";
 import { generateAIProfile, updateAI } from "./AI.js";
@@ -99,7 +100,7 @@ class Game {
       if (e.code === "Digit1") this.switchWeapon(0);
       if (e.code === "Digit2") this.switchWeapon(1);
       if (e.code === "KeyR") this.startReload();
-      if (e.code === "KeyE") this.tryPickup();
+      if (e.code === "KeyE") this.interact();
       if (e.code === "KeyF") this.useBandage();
       if (e.code === "KeyG") this.throwGrenade();
     });
@@ -231,6 +232,22 @@ class Game {
       this.hud.showReloading();
       sfxReload();
     }
+  }
+
+  interact() {
+    // Try chest first
+    const nearestChest = findNearestChest(this.playerPos, 4);
+    if (nearestChest) {
+      const opened = openChest(nearestChest);
+      if (opened) {
+        sfxPickup();
+        this.hud.hideInteractPrompt();
+        return;
+      }
+    }
+
+    // Try ground pickup
+    this.tryPickup();
   }
 
   tryPickup() {
@@ -570,6 +587,17 @@ class Game {
 
     // Update HUD
     this.updateHUDAll();
+
+    // Interaction prompt
+    const nearestChest = findNearestChest(this.playerPos, 3.5);
+    const nearestPickup = getPickups().find(p => !p.removed && this.playerPos.distanceTo(p.position) < 3);
+    if (nearestChest) {
+      this.hud.showInteractPrompt("Open Chest 打开宝箱");
+    } else if (nearestPickup) {
+      this.hud.showInteractPrompt(`Pick Up ${nearestPickup.def.name} 拾取`);
+    } else {
+      this.hud.hideInteractPrompt();
+    }
   }
 
   updateHUDAll() {

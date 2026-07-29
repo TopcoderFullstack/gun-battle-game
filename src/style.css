@@ -374,3 +374,43 @@ kbd {
   color: #ff8844;
   font-weight: 700;
 }
+
+/* Interaction Prompt */
+#interact-prompt {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  transform: translate(-50%, 80px);
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+#interact-prompt.visible {
+  opacity: 1;
+}
+
+#interact-key {
+  display: inline-block;
+  background: #ffcc00;
+  color: #000;
+  font-weight: 900;
+  font-size: 16px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  min-width: 28px;
+  text-align: center;
+}
+
+#interact-text {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}

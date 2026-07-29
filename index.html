@@ -74,20 +74,27 @@
     <!-- Overlay -->
     <div id="overlay">
       <div id="overlay-box">
-        <h1>GUN BATTLE 3D</h1>
-        <p class="sub">第一人称射击 · FPS Arena</p>
+        <h1 id="overlay-title">BATTLE ROYALE</h1>
+        <p class="sub" id="overlay-sub">大型缩圈吃鸡 · 3D FPS</p>
         <div class="controls">
-          <p><kbd>WASD</kbd> 移动 Move</p>
-          <p><kbd>Mouse</kbd> 瞄准 Aim</p>
-          <p><kbd>Click</kbd> 射击 Shoot</p>
-          <p><kbd>1 2</kbd> 切换武器 Switch</p>
+          <p><kbd>W A S D</kbd> 移动 Move</p>
+          <p><kbd>Mouse Move</kbd> 视角 Look</p>
+          <p><kbd>Left Click</kbd> 射击 Shoot</p>
+          <p><kbd>1</kbd><kbd>2</kbd><kbd>Scroll</kbd> 切换武器 Switch</p>
           <p><kbd>R</kbd> 换弹 Reload</p>
           <p><kbd>Space</kbd> 跳跃 Jump</p>
+          <p><kbd>E</kbd> 拾取/开箱 Pickup</p>
+          <p><kbd>F</kbd> 使用绷带 Bandage</p>
+          <p><kbd>G</kbd> 投掷手雷 Grenade</p>
         </div>
         <button id="start-btn">START GAME</button>
       </div>
     </div>
 
+    <div id="interact-prompt">
+      <span id="interact-key">E</span>
+      <span id="interact-text"></span>
+    </div>
     <div id="reload-indicator">RELOADING...</div>
     <div id="hit-marker">✕</div>
   </div>
