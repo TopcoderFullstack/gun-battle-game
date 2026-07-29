@@ -2,314 +2,320 @@ import * as THREE from "three";
 import gsap from "gsap";
 
 const enemies = [];
-const ENEMY_SPEED = 4.5;
-const ENEMY_RADIUS = 0.6;
-const ENEMY_HP = 60;
+const MODEL_CACHE = {};
 
-export function createEnemy(scene, position, type = "grunt") {
+function getSkinColor() {
+  const colors = [0xffccaa, 0xddbb99, 0xccaa88, 0xffddaa, 0xeeddcc];
+  return colors[Math.floor(Math.random() * colors.length)];
+}
+
+function getShirtColor() {
+  const colors = [0x3366aa, 0x44aa44, 0xaa4444, 0xaa8833, 0x666688, 0x445566];
+  return colors[Math.floor(Math.random() * colors.length)];
+}
+
+export function createEnemyModel(scene, position, aiProfile) {
   const group = new THREE.Group();
   group.position.copy(position);
 
-  // Body
-  const bodyGeo = new THREE.CylinderGeometry(0.4, 0.5, 1.6, 8);
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: type === "heavy" ? 0xcc3333 : 0xdd6633,
-    roughness: 0.5,
-    metalness: 0.2,
+  const skinColor = getSkinColor();
+  const shirtColor = getShirtColor();
+
+  // Legs
+  const legGeo = new THREE.CylinderGeometry(0.15, 0.18, 1.0, 8);
+  const legMat = new THREE.MeshStandardMaterial({
+    color: 0x334455,
+    roughness: 0.7,
   });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.8;
-  body.castShadow = true;
-  group.add(body);
+
+  const leftLeg = new THREE.Mesh(legGeo, legMat);
+  leftLeg.position.set(-0.18, 0.5, 0);
+  leftLeg.castShadow = true;
+  group.add(leftLeg);
+
+  const rightLeg = new THREE.Mesh(legGeo, legMat);
+  rightLeg.position.set(0.18, 0.5, 0);
+  rightLeg.castShadow = true;
+  group.add(rightLeg);
+
+  // Torso
+  const torsoGeo = new THREE.BoxGeometry(0.5, 0.7, 0.3);
+  const torsoMat = new THREE.MeshStandardMaterial({
+    color: shirtColor,
+    roughness: 0.6,
+  });
+  const torso = new THREE.Mesh(torsoGeo, torsoMat);
+  torso.position.y = 1.15;
+  torso.castShadow = true;
+  group.add(torso);
+
+  // Arms
+  const armGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.8, 8);
+  const armMat = new THREE.MeshStandardMaterial({
+    color: skinColor,
+    roughness: 0.8,
+  });
+
+  const leftArm = new THREE.Mesh(armGeo, armMat);
+  leftArm.position.set(-0.35, 1.2, 0);
+  leftArm.castShadow = true;
+  group.add(leftArm);
+
+  const rightArm = new THREE.Mesh(armGeo, armMat);
+  rightArm.position.set(0.35, 1.2, 0);
+  rightArm.castShadow = true;
+  group.add(rightArm);
 
   // Head
-  const headGeo = new THREE.SphereGeometry(0.3, 8, 8);
+  const headGeo = new THREE.SphereGeometry(0.2, 12, 12);
   const headMat = new THREE.MeshStandardMaterial({
-    color: 0xffccaa,
-    roughness: 0.6,
-    metalness: 0,
+    color: skinColor,
+    roughness: 0.7,
   });
   const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = 1.8;
+  head.position.y = 1.7;
   head.castShadow = true;
   group.add(head);
 
+  // Hair/hat
+  const hatColor = Math.random() < 0.5 ? 0x222222 : 0x553322;
+  const hairGeo = new THREE.SphereGeometry(0.21, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2);
+  const hairMat = new THREE.MeshStandardMaterial({
+    color: hatColor,
+    roughness: 0.8,
+  });
+  const hair = new THREE.Mesh(hairGeo, hairMat);
+  hair.position.y = 1.75;
+  group.add(hair);
+
   // Eyes
-  const eyeGeo = new THREE.SphereGeometry(0.06, 4, 4);
-  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const eyeGeo = new THREE.SphereGeometry(0.03, 4, 4);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
   const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-  leftEye.position.set(-0.1, 1.82, -0.26);
+  leftEye.position.set(-0.07, 1.72, -0.18);
   group.add(leftEye);
   const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-  rightEye.position.set(0.1, 1.82, -0.26);
+  rightEye.position.set(0.07, 1.72, -0.18);
   group.add(rightEye);
 
-  // Weapon (simple cylinder on right side)
-  const gunGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6);
+  // Weapon in right hand
+  const gunGroup = new THREE.Group();
+  const gunGeo = new THREE.BoxGeometry(0.06, 0.08, 0.4);
   const gunMat = new THREE.MeshStandardMaterial({
     color: 0x333333,
-    roughness: 0.3,
-    metalness: 0.8,
+    roughness: 0.2,
+    metalness: 0.9,
   });
   const gun = new THREE.Mesh(gunGeo, gunMat);
-  gun.rotation.z = Math.PI / 2;
-  gun.position.set(0.45, 0.9, 0);
-  group.add(gun);
+  gun.position.y = 0.1;
+  gunGroup.add(gun);
 
-  // HP bar (billboard)
+  const gunBarrel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.025, 0.3, 6),
+    gunMat
+  );
+  gunBarrel.rotation.x = Math.PI / 2;
+  gunBarrel.position.set(0, 0.1, -0.3);
+  gunGroup.add(gunBarrel);
+
+  gunGroup.position.set(0.4, 1.1, 0);
+  group.add(gunGroup);
+
+  // Nametag
+  const nametagCanvas = document.createElement("canvas");
+  nametagCanvas.width = 128;
+  nametagCanvas.height = 32;
+  const ntCtx = nametagCanvas.getContext("2d");
+  ntCtx.fillStyle = "white";
+  ntCtx.font = "bold 16px Arial";
+  ntCtx.textAlign = "center";
+  ntCtx.fillText(aiProfile.name || "Enemy", 64, 20);
+  const ntTex = new THREE.CanvasTexture(nametagCanvas);
+  const ntMat = new THREE.SpriteMaterial({
+    map: ntTex,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const nameSprite = new THREE.Sprite(ntMat);
+  nameSprite.scale.set(1.5, 0.38, 1);
+  nameSprite.position.y = 2.1;
+  group.add(nameSprite);
+
+  // HP bar
   const barCanvas = document.createElement("canvas");
   barCanvas.width = 64;
   barCanvas.height = 8;
   const barCtx = barCanvas.getContext("2d");
   const barTex = new THREE.CanvasTexture(barCanvas);
-  const barMat = new THREE.SpriteMaterial({
+  const barSprMat = new THREE.SpriteMaterial({
     map: barTex,
     transparent: true,
     depthTest: false,
     depthWrite: false,
   });
-  const hpBar = new THREE.Sprite(barMat);
-  hpBar.scale.set(1.5, 0.2, 1);
-  hpBar.position.y = 2.2;
-
-  function updateBar(hp, maxHp) {
-    barCtx.clearRect(0, 0, 64, 8);
-    barCtx.fillStyle = "rgba(0,0,0,0.6)";
-    barCtx.fillRect(0, 0, 64, 8);
-    const ratio = hp / maxHp;
-    barCtx.fillStyle =
-      ratio > 0.5 ? "#44ff44" : ratio > 0.25 ? "#ffcc00" : "#ff4444";
-    barCtx.fillRect(0, 0, 64 * ratio, 8);
-    barTex.needsUpdate = true;
-  }
-
-  updateBar(ENEMY_HP, ENEMY_HP);
+  const hpBar = new THREE.Sprite(barSprMat);
+  hpBar.scale.set(1.2, 0.15, 1);
+  hpBar.position.y = 2.35;
   group.add(hpBar);
 
   scene.add(group);
 
   const enemyData = {
     mesh: group,
-    body,
     head,
+    torso,
+    leftArm,
+    rightArm,
+    leftLeg,
+    rightLeg,
+    gunGroup,
+    nameSprite,
     hpBar,
-    updateBar,
-    hp: ENEMY_HP,
-    maxHp: ENEMY_HP,
-    speed: ENEMY_SPEED,
-    radius: ENEMY_RADIUS * 0.6,
-    cooldown: 0,
-    shootInterval: type === "heavy" ? 1.5 : 2.0,
-    damage: type === "heavy" ? 18 : 10,
-    type,
+    barCanvas,
+    barCtx,
+    barTex,
+    hp: aiProfile.hp || 100,
+    maxHp: aiProfile.hp || 100,
     alive: true,
+    profile: aiProfile,
     state: "idle",
     stateTimer: 0,
-    patrolTarget: null,
-    deathAnim: null,
+    shootCooldown: 0,
+    shootInterval: 0.6 + Math.random() * 1.0,
+    accuracy: aiProfile.accuracy || 0.7,
+    lastKnownPlayerPos: null,
+    patrolPath: [],
+    patrolIndex: 0,
+    targetItem: null,
+    weaponRange: 20,
+    weaponDamage: 12,
+    damageFlash: 0,
+    deathTime: 0,
   };
 
+  updateEnemyHPBar(enemyData);
   enemies.push(enemyData);
   return enemyData;
 }
 
-export function updateEnemies(dt, playerPos, playerAlive, walls, scene) {
-  for (const enemy of enemies) {
-    if (!enemy.alive) continue;
+export function updateEnemyHPBar(enemy) {
+  const ctx = enemy.barCtx;
+  const w = 64;
+  ctx.clearRect(0, 0, w, 8);
+  ctx.fillStyle = "rgba(0,0,0,0.7)";
+  ctx.fillRect(0, 0, w, 8);
 
-    const dx = playerPos.x - enemy.mesh.position.x;
-    const dz = playerPos.z - enemy.mesh.position.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-
-    // Face player
-    const targetAngle = Math.atan2(dx, dz);
-    enemy.mesh.rotation.y = targetAngle;
-
-    // State machine
-    enemy.stateTimer -= dt;
-    enemy.cooldown -= dt;
-
-    if (dist < 25) {
-      if (enemy.stateTimer <= 0) {
-        if (dist < 8) {
-          enemy.state = Math.random() < 0.4 ? "strafe" : "chase";
-        } else if (dist < 15) {
-          enemy.state =
-            Math.random() < 0.6
-              ? "chase"
-              : Math.random() < 0.5
-              ? "shoot"
-              : "strafe";
-        } else {
-          enemy.state = "chase";
-        }
-        enemy.stateTimer = 1 + Math.random() * 2;
-      }
-    } else {
-      enemy.state = "idle";
-    }
-
-    let moveX = 0;
-    let moveZ = 0;
-
-    switch (enemy.state) {
-      case "chase":
-        if (dist > 5) {
-          moveX = (dx / dist) * enemy.speed * dt;
-          moveZ = (dz / dist) * enemy.speed * dt;
-        }
-        break;
-      case "strafe": {
-        const perpX = -dz / (dist || 1);
-        const perpZ = dx / (dist || 1);
-        const dir = Math.sin(enemy.stateTimer * 3) > 0 ? 1 : -1;
-        moveX = perpX * enemy.speed * 0.6 * dir * dt;
-        moveZ = perpZ * enemy.speed * 0.6 * dir * dt;
-        if (dist > 6) {
-          moveX += (dx / dist) * enemy.speed * 0.3 * dt;
-          moveZ += (dz / dist) * enemy.speed * 0.3 * dt;
-        }
-        break;
-      }
-      case "shoot":
-        // Stand and shoot
-        break;
-      case "idle":
-      default:
-        break;
-    }
-
-    // Apply movement with collision
-    const newX = enemy.mesh.position.x + moveX;
-    const newZ = enemy.mesh.position.z + moveZ;
-    if (!checkWallCollision(newX, enemy.mesh.position.z, enemy.radius, walls)) {
-      enemy.mesh.position.x = newX;
-    }
-    if (!checkWallCollision(enemy.mesh.position.x, newZ, enemy.radius, walls)) {
-      enemy.mesh.position.z = newZ;
-    }
-
-    // Avoid other enemies
-    for (const other of enemies) {
-      if (other === enemy || !other.alive) continue;
-      const edx = enemy.mesh.position.x - other.mesh.position.x;
-      const edz = enemy.mesh.position.z - other.mesh.position.z;
-      const edist = Math.sqrt(edx * edx + edz * edz);
-      if (edist < enemy.radius * 3 && edist > 0) {
-        const push = (enemy.radius * 3 - edist) * 0.3;
-        enemy.mesh.position.x += (edx / edist) * push;
-        enemy.mesh.position.z += (edz / edist) * push;
-      }
-    }
-
-    // Enemy shooting
-    if (enemy.cooldown <= 0 && dist < 20 && playerAlive) {
-      enemy.cooldown = enemy.shootInterval;
-      const muzzlePos = enemy.mesh.position.clone();
-      muzzlePos.y = 0.9;
-      muzzlePos.x += Math.sin(targetAngle) * 0.5;
-      muzzlePos.z += Math.cos(targetAngle) * 0.5;
-      return { muzzlePos, direction: new THREE.Vector3(dx, 0, dz).normalize() };
-    }
-  }
-  return null;
-}
-
-export function hurtEnemy(enemy, damage, scene) {
-  if (!enemy.alive) return false;
-  enemy.hp -= damage;
-  enemy.updateBar(enemy.hp, enemy.maxHp);
-
-  // Flash red
-  gsap.to(enemy.body.material.color, {
-    r: 1,
-    g: 0,
-    b: 0,
-    duration: 0.05,
-    yoyo: true,
-    repeat: 1,
-  });
-
-  if (enemy.hp <= 0) {
-    killEnemy(enemy, scene);
-    return true; // enemy killed
-  }
-  return false;
-}
-
-function killEnemy(enemy, scene) {
-  enemy.alive = false;
-
-  // Death animation - fall over
-  gsap.to(enemy.mesh.rotation, {
-    x: Math.PI / 2,
-    duration: 0.5,
-    ease: "power2.in",
-  });
-  gsap.to(enemy.mesh.position, {
-    y: enemy.mesh.position.y - 0.8,
-    duration: 0.5,
-    ease: "power2.in",
-    onComplete: () => {
-      // Fade out and remove after a bit
-      gsap.to(enemy.mesh.scale, {
-        x: 0,
-        y: 0,
-        z: 0,
-        duration: 1.5,
-        delay: 2,
-        ease: "power2.in",
-        onComplete: () => {
-          scene.remove(enemy.mesh);
-          disposeEnemy(enemy);
-        },
-      });
-    },
-  });
-}
-
-function disposeEnemy(enemy) {
-  enemy.mesh.traverse((child) => {
-    if (child.geometry) child.geometry.dispose();
-    if (child.material) {
-      if (Array.isArray(child.material)) {
-        child.material.forEach((m) => m.dispose());
-      } else {
-        if (child.material.map) child.material.map.dispose();
-        child.material.dispose();
-      }
-    }
-  });
-  const idx = enemies.indexOf(enemy);
-  if (idx > -1) enemies.splice(idx, 1);
+  const ratio = enemy.hp / enemy.maxHp;
+  const color =
+    ratio > 0.6 ? "#44ff44" : ratio > 0.3 ? "#ffcc00" : "#ff4444";
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, w * ratio, 8);
+  enemy.barTex.needsUpdate = true;
 }
 
 export function getEnemies() {
   return enemies;
 }
 
-export function checkWallCollision(px, pz, radius, walls) {
-  for (const w of walls) {
-    const closestX = Math.max(w.minX, Math.min(px, w.maxX));
-    const closestZ = Math.max(w.minZ, Math.min(pz, w.maxZ));
-    const dx = px - closestX;
-    const dz = pz - closestZ;
-    if (dx * dx + dz * dz < radius * radius) return true;
+export function hurtEnemy(enemy, damage, scene) {
+  if (!enemy.alive) return false;
+
+  enemy.hp -= damage;
+  enemy.damageFlash = 0.15;
+  updateEnemyHPBar(enemy);
+
+  gsap.to(enemy.torso.material.color, {
+    r: 1,
+    g: 0.3,
+    b: 0.3,
+    duration: 0.06,
+    onComplete: () => {
+      gsap.to(enemy.torso.material.color, {
+        r: enemy.profile.shirtR || 0.4,
+        g: enemy.profile.shirtG || 0.5,
+        b: enemy.profile.shirtB || 0.7,
+        duration: 0.15,
+      });
+    },
+  });
+
+  if (enemy.hp <= 0) {
+    killEnemy(enemy, scene);
+    return true;
   }
   return false;
 }
 
-export function findSpawnPoint(walls) {
-  const mapHalf = 36;
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const x = (Math.random() - 0.5) * mapHalf * 2;
-    const z = (Math.random() - 0.5) * mapHalf * 2;
-    if (!checkWallCollision(x, z, 1, walls)) {
-      // Make sure spawn is at least 15 units from origin (player start)
-      if (Math.sqrt(x * x + z * z) > 15) {
-        return new THREE.Vector3(x, 0, z);
+export function killEnemy(enemy, scene) {
+  enemy.alive = false;
+  enemy.deathTime = 0;
+
+  gsap.to(enemy.mesh.rotation, {
+    x: -Math.PI / 2,
+    z: 0.3,
+    duration: 0.4,
+    ease: "power2.in",
+  });
+  gsap.to(enemy.mesh.position, {
+    y: enemy.mesh.position.y - 0.8,
+    duration: 0.4,
+    ease: "power2.in",
+  });
+
+  // Spawn loot box
+  spawnDeathLoot(scene, enemy.mesh.position.clone());
+}
+
+function spawnDeathLoot(scene, pos) {
+  const geo = new THREE.BoxGeometry(0.8, 0.4, 0.6);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xdd8844,
+    roughness: 0.5,
+    emissive: 0x331100,
+    emissiveIntensity: 0.3,
+  });
+  const box = new THREE.Mesh(geo, mat);
+  box.position.copy(pos);
+  box.position.y = 0.2;
+  box.name = "deathLoot";
+  scene.add(box);
+
+  const glowGeo = new THREE.TorusGeometry(0.5, 0.05, 8, 16);
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: 0xffcc00,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false,
+  });
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.set(pos.x, 0.15, pos.z);
+  glow.name = "deathLootGlow";
+  scene.add(glow);
+}
+
+export function removeDeadEnemies(scene) {
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    if (!e.alive) {
+      e.deathTime += 0.016;
+      if (e.deathTime > 8) {
+        disposeEnemy(e, scene);
+        enemies.splice(i, 1);
       }
     }
   }
-  return new THREE.Vector3(20, 0, 20);
+}
+
+function disposeEnemy(enemy, scene) {
+  enemy.mesh.traverse((c) => {
+    if (c.geometry && c.geometry !== enemy.barCanvas) c.geometry.dispose();
+    if (c.material) {
+      if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+      else c.material.dispose();
+    }
+  });
+  scene.remove(enemy.mesh);
+  enemy.barTex.dispose();
 }

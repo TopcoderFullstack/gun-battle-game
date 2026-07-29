@@ -1,35 +1,23 @@
 import * as THREE from "three";
 import gsap from "gsap";
-import { scene, buildScene } from "./Scene.js";
-import {
-  weaponDefs,
-  createWeaponModel,
-} from "./Weapon.js";
-import {
-  createMuzzleFlash,
-  triggerMuzzleFlash,
-  spawnImpact,
-  showTrail,
-  updateParticles,
-  clearAllEffects,
-} from "./Effects.js";
-import {
-  createEnemy,
-  updateEnemies,
-  hurtEnemy,
-  getEnemies,
-  checkWallCollision,
-  findSpawnPoint,
-} from "./Enemy.js";
+import { createSky, createClouds, createTrees, createBuildings, createTerrain, getMapHalf, setAllWalls, checkWallCollision } from "./Scene.js";
+import { spawnLoot, getPickups, updatePickups } from "./Pickups.js";
+import { Inventory } from "./Inventory.js";
+import { createEnemyModel, getEnemies, hurtEnemy, removeDeadEnemies } from "./Enemy.js";
+import { generateAIProfile, updateAI } from "./AI.js";
+import { ZoneManager } from "./Zone.js";
+import { createMuzzleFlash, triggerMuzzleFlash, showTrail, spawnBulletImpact, spawnExplosion, updateParticles, cleanupEffects } from "./Effects.js";
+import { HUD } from "./HUD.js";
+import { sfxShoot, sfxRifle, sfxShotgun, sfxSniper, sfxHit, sfxExplosion, sfxPickup, sfxDamage, sfxReload } from "./Audio.js";
+
+const scene = new THREE.Scene();
 
 class Game {
   constructor() {
-    this.canvas = document.getElementById("game-canvas");
     this.renderer = null;
     this.camera = null;
-    this.lockControls = null;
     this.clock = new THREE.Clock();
-    this.state = "menu"; // menu | playing | gameover
+    this.state = "menu";
     this.keys = {};
     this.playerPos = new THREE.Vector3(0, 1.6, 0);
     this.playerVelocity = new THREE.Vector3();
@@ -38,62 +26,45 @@ class Game {
     this.playerMaxHP = 100;
     this.score = 0;
     this.kills = 0;
-    this.wave = 1;
-    this.waveTimer = 0;
-    this.enemiesToSpawn = 4;
     this.isShooting = false;
-    this.currentWeapon = 0;
     this.weaponCooldown = 0;
-    this.weaponReloading = 0;
-    this.ammo = weaponDefs.map((w) => w.maxAmmo);
-    this.invulnTimer = 0;
-    this.muzzleFlash = null;
-    this.weaponModel = null;
-    this.weaponGroup = null;
-    this.walls = [];
-    this.enemyShootQueue = [];
-    this.playerDir = new THREE.Vector3(0, 0, -1);
+    this.reloadTimer = 0;
+    this.isReloading = false;
     this.euler = new THREE.Euler(0, 0, 0, "YXZ");
     this.isPointerLocked = false;
+    this.invulnTimer = 0;
+    this.walls = [];
+    this.totalNPCs = 12;
+    this.aliveNPCs = 0;
+    this.healCooldown = 0;
 
-    // DOM elements
-    this.overlay = document.getElementById("overlay");
-    this.startBtn = document.getElementById("start-btn");
-    this.hpBar = document.getElementById("hp-bar");
-    this.hpText = document.getElementById("hp-text");
-    this.killsText = document.getElementById("kills-text");
-    this.scoreText = document.getElementById("score-text");
-    this.weaponName = document.getElementById("weapon-name");
-    this.ammoText = document.getElementById("ammo-text");
-    this.damageFlash = document.getElementById("damage-flash");
-    this.hitMarker = document.getElementById("hit-marker");
-    this.reloadIndicator = document.getElementById("reload-indicator");
-    this.crosshair = document.getElementById("crosshair");
+    this.hud = new HUD();
+    this.inventory = null;
+    this.zone = null;
+    this.muzzleFlash = null;
+    this.clouds = null;
   }
 
   init() {
     this.setupRenderer();
-    this.walls = buildScene(scene);
+    this.buildScene();
     this.setupCamera();
-    this.setupWeapons();
-    this.setupMuzzleFlash();
+    this.inventory = new Inventory(scene, this.camera);
+    this.muzzleFlash = createMuzzleFlash(scene);
     this.setupInput();
     this.setupStartButton();
-
     this.renderer.setAnimationLoop((time) => this.gameLoop(time));
   }
 
   setupRenderer() {
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      antialias: true,
-    });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.toneMappingExposure = 1.0;
+    document.getElementById("app").prepend(this.renderer.domElement);
 
     window.addEventListener("resize", () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -102,25 +73,23 @@ class Game {
     });
   }
 
+  buildScene() {
+    scene.background = new THREE.Color(0x8899cc);
+    createSky(scene);
+    this.clouds = createClouds(scene);
+    const buildWalls = createBuildings(scene);
+    const treeWalls = [];
+    createTrees(scene, treeWalls);
+    createTerrain(scene);
+    this.walls = [...buildWalls, ...treeWalls];
+    setAllWalls(this.walls);
+    this.zone = new ZoneManager(scene);
+  }
+
   setupCamera() {
-    this.camera = new THREE.PerspectiveCamera(
-      80,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      200
-    );
+    this.camera = new THREE.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 0.1, 500);
     this.camera.position.copy(this.playerPos);
     scene.add(this.camera);
-  }
-
-  setupWeapons() {
-    const { group, muzzle } = createWeaponModel(scene, this.camera);
-    this.weaponGroup = group;
-    this.weaponMuzzlePoint = muzzle;
-  }
-
-  setupMuzzleFlash() {
-    this.muzzleFlash = createMuzzleFlash(scene);
   }
 
   setupInput() {
@@ -130,70 +99,65 @@ class Game {
       if (e.code === "Digit1") this.switchWeapon(0);
       if (e.code === "Digit2") this.switchWeapon(1);
       if (e.code === "KeyR") this.startReload();
+      if (e.code === "KeyE") this.tryPickup();
+      if (e.code === "KeyF") this.useBandage();
+      if (e.code === "KeyG") this.throwGrenade();
     });
 
-    window.addEventListener("keyup", (e) => {
-      this.keys[e.code] = false;
-    });
+    window.addEventListener("keyup", (e) => { this.keys[e.code] = false; });
 
     window.addEventListener("mousedown", (e) => {
       if (e.button === 0 && this.state === "playing") {
         this.isShooting = true;
-        // Request pointer lock on click
-        if (!this.isPointerLocked) {
-          this.canvas.requestPointerLock();
-        }
+        if (!this.isPointerLocked) this.renderer.domElement.requestPointerLock();
       }
     });
 
-    window.addEventListener("mouseup", (e) => {
-      if (e.button === 0) {
-        this.isShooting = false;
-      }
-    });
+    window.addEventListener("mouseup", (e) => { if (e.button === 0) this.isShooting = false; });
 
     document.addEventListener("pointerlockchange", () => {
-      this.isPointerLocked = document.pointerLockElement === this.canvas;
-      if (this.isPointerLocked) {
-        this.crosshair.style.display = "block";
-      }
+      this.isPointerLocked = document.pointerLockElement === this.renderer.domElement;
     });
 
     document.addEventListener("mousemove", (e) => {
       if (!this.isPointerLocked || this.state !== "playing") return;
-      const sensitivity = 0.002;
       this.euler.setFromQuaternion(this.camera.quaternion);
-      this.euler.y -= e.movementX * sensitivity;
-      this.euler.x -= e.movementY * sensitivity;
-      this.euler.x = Math.max(
-        -Math.PI / 2.2,
-        Math.min(Math.PI / 2.2, this.euler.x)
-      );
+      this.euler.y -= e.movementX * 0.002;
+      this.euler.x -= e.movementY * 0.002;
+      this.euler.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.euler.x));
       this.camera.quaternion.setFromEuler(this.euler);
+    });
+
+    document.addEventListener("wheel", (e) => {
+      if (this.state !== "playing") return;
+      // Cycle weapons on scroll
+      if (e.deltaY > 0) this.switchWeapon(1);
+      else this.switchWeapon(0);
     });
   }
 
   setupStartButton() {
-    this.startBtn.addEventListener("click", () => {
-      this.startGame();
-    });
+    this.hud.elements.startBtn.addEventListener("click", () => this.startGame());
   }
 
   startGame() {
-    // Reset
+    // Clean up previous game
+    cleanupEffects(scene);
+    removeAllNPCs();
+    scene.children.forEach((c) => {
+      if (c.name === "deathLoot" || c.name === "deathLootGlow") scene.remove(c);
+    });
+
+    // Reset player
     this.playerHP = this.playerMaxHP;
     this.score = 0;
     this.kills = 0;
-    this.wave = 1;
-    this.waveTimer = 0;
-    this.enemiesToSpawn = 4;
     this.isShooting = false;
-    this.currentWeapon = 0;
     this.weaponCooldown = 0;
-    this.weaponReloading = 0;
-    this.ammo = weaponDefs.map((w) => w.maxAmmo);
+    this.reloadTimer = 0;
+    this.isReloading = false;
     this.invulnTimer = 0;
-    this.isShooting = false;
+    this.healCooldown = 0;
     this.playerPos.set(0, 1.6, 0);
     this.playerVelocity.set(0, 0, 0);
     this.playerOnGround = true;
@@ -201,206 +165,242 @@ class Game {
     this.camera.position.copy(this.playerPos);
     this.camera.quaternion.setFromEuler(this.euler);
 
-    // Clear old enemies
-    const oldEnemies = getEnemies();
-    for (const e of oldEnemies) {
-      scene.remove(e.mesh);
-    }
-    oldEnemies.length = 0;
-    clearAllEffects(scene);
+    // Reset inventory
+    this.inventory = new Inventory(scene, this.camera);
+    this.muzzleFlash = createMuzzleFlash(scene);
+
+    // Spawn loot
+    spawnLoot(scene);
+
+    // Spawn NPCs
+    this.spawnNPCs(this.totalNPCs);
+
+    // Reset zone
+    this.zone = new ZoneManager(scene);
 
     this.state = "playing";
-    this.overlay.classList.add("hidden");
-    this.weaponGroup.visible = true;
-    this.crosshair.style.display = "block";
-    this.updateHUD();
-
-    // Request pointer lock
-    this.canvas.requestPointerLock();
+    this.hud.hideStartScreen();
+    this.hud.setCrosshairVisible(true);
+    this.renderer.domElement.requestPointerLock();
   }
 
-  gameOver() {
-    this.state = "gameover";
-    this.overlay.classList.remove("hidden");
-    document.getElementById("overlay-box").querySelector("h1").textContent =
-      "GAME OVER";
-    document.getElementById("overlay-box").querySelector(".sub").textContent =
-      `Score: ${this.score} | Kills: ${this.kills} | Wave: ${this.wave}`;
-    this.startBtn.textContent = "RESTART";
-    this.weaponGroup.visible = false;
-    this.crosshair.style.display = "none";
-    document.exitPointerLock();
+  spawnNPCs(count) {
+    const half = getMapHalf();
+    for (let i = 0; i < count; i++) {
+      const skill = i < 3 ? "hard" : i < 7 ? "medium" : "easy";
+      const profile = generateAIProfile(skill);
+      const spawn = this.findSpawnPoint();
+      createEnemyModel(scene, spawn, profile);
+    }
+    this.aliveNPCs = count;
   }
 
-  switchWeapon(index) {
-    if (index === this.currentWeapon) return;
-    if (index >= weaponDefs.length) return;
-    this.currentWeapon = index;
-    this.weaponCooldown = 0;
-    this.weaponReloading = 0;
-    this.updateHUD();
+  findSpawnPoint() {
+    const half = getMapHalf();
+    for (let i = 0; i < 50; i++) {
+      const x = (Math.random() - 0.5) * half * 1.8;
+      const z = (Math.random() - 0.5) * half * 1.8;
+      if (!checkWallCollision(x, z, 0.5, this.walls) &&
+          new THREE.Vector3(x, 0, z).distanceTo(this.playerPos) > 25) {
+        return new THREE.Vector3(x, 0, z);
+      }
+    }
+    return new THREE.Vector3(half * 0.8, 0, half * 0.8);
+  }
+
+  switchWeapon(slot) {
+    if (this.isReloading) return;
+    const result = this.inventory.switchWeapon(slot);
+    if (result) {
+      this.weaponCooldown = 0;
+      this.hud.updateWeapon(result.def.name, result.ammo, result.reserve, result.def.ammo === Infinity);
+    }
   }
 
   startReload() {
-    const w = weaponDefs[this.currentWeapon];
-    if (w.ammo === Infinity || this.weaponReloading > 0) return;
-    if (this.ammo[this.currentWeapon] >= w.maxAmmo) return;
-    this.weaponReloading = w.reloadTime;
-    gsap.to(this.reloadIndicator, {
-      opacity: 1,
-      duration: 0.1,
-    });
+    if (this.isReloading) return;
+    const info = this.inventory.getInfo();
+    if (info.ammo >= info.currentWeapon.def?.maxAmmo) return;
+    const success = this.inventory.reload();
+    if (success) {
+      const w = this.inventory.getCurrentWeapon();
+      this.isReloading = true;
+      this.reloadTimer = w.def.reloadTime;
+      this.hud.showReloading();
+      sfxReload();
+    }
+  }
+
+  tryPickup() {
+    const pickups = getPickups();
+    const pos = this.playerPos.clone();
+    let closestDist = 3;
+    let closestPk = null;
+
+    for (const pk of pickups) {
+      if (pk.removed) continue;
+      const d = pos.distanceTo(pk.position);
+      if (d < closestDist) {
+        closestDist = d;
+        closestPk = pk;
+      }
+    }
+
+    if (closestPk) {
+      const result = this.inventory.pickup(closestPk.def, closestPk.type);
+      if (result && result.action !== "full") {
+        closestPk.removed = true;
+        sfxPickup();
+        this.hud.updateBackpack(this.inventory);
+        const info = this.inventory.getInfo();
+        this.hud.updateWeapon(info.currentWeapon, info.ammo, info.reserve, info.isInfAmmo);
+      }
+    }
+  }
+
+  useBandage() {
+    if (this.healCooldown > 0 || this.playerHP >= this.playerMaxHP) return;
+    const result = this.inventory.useItem("bandage");
+    if (result) {
+      this.playerHP = Math.min(this.playerMaxHP, this.playerHP + result.heal);
+      this.healCooldown = 2;
+      this.hud.updateBackpack(this.inventory);
+    }
+  }
+
+  throwGrenade() {
+    if (!this.inventory.hasGrenade()) return;
+    if (this.weaponCooldown > 0) return;
+    this.inventory.useGrenade();
+
+    const dir = new THREE.Vector3(0, 0.3, -1).applyQuaternion(this.camera.quaternion).normalize();
+    const origin = this.camera.position.clone();
+    const grenade = {
+      pos: origin.clone(),
+      vel: dir.clone().multiplyScalar(20),
+      life: 3,
+      exploded: false,
+      radius: 8,
+    };
+
+    this.activeGrenade = grenade;
+    this.weaponCooldown = 2;
   }
 
   shoot() {
-    if (this.weaponCooldown > 0 || this.weaponReloading > 0) return;
-    const w = weaponDefs[this.currentWeapon];
+    if (this.isReloading) return;
+    if (this.weaponCooldown > 0) return;
 
-    if (this.ammo[this.currentWeapon] <= 0 && w.ammo !== Infinity) {
-      this.startReload();
+    const w = this.inventory.getCurrentWeapon();
+    const model = this.inventory.getActiveModel();
+
+    if (!this.inventory.consumeAmmo(w.def.bullets)) return;
+
+    const def = w.def;
+    if (def.isGrenade) {
+      this.throwGrenade();
       return;
     }
 
-    for (let i = 0; i < w.bulletsPerShot; i++) {
-      const spreadX = (Math.random() - 0.5) * w.spread * 2;
-      const spreadY = (Math.random() - 0.5) * w.spread * 2;
+    for (let i = 0; i < def.bullets; i++) {
+      const spreadX = (Math.random() - 0.5) * def.spread * 2;
+      const spreadY = (Math.random() - 0.5) * def.spread * 2;
       const dir = new THREE.Vector3(0, 0, -1)
         .applyQuaternion(this.camera.quaternion)
         .add(new THREE.Vector3(spreadX, spreadY, 0))
         .normalize();
 
       const origin = this.camera.position.clone();
-
-      // Raycast for hit detection
-      const raycaster = new THREE.Raycaster(origin, dir, 0, w.range);
+      const raycaster = new THREE.Raycaster(origin, dir, 0, def.range);
       let hitPoint = null;
-      let hitNormal = null;
-      let hitEnemy = null;
 
-      // Check wall hits
       for (const wall of this.walls) {
-        // Quick AABB ray test
         const t = this.rayAABB(origin, dir, wall);
-        if (t !== null && t < w.range) {
+        if (t !== null && t < def.range) {
           const pt = origin.clone().addScaledVector(dir, t);
           if (!hitPoint || origin.distanceTo(pt) < origin.distanceTo(hitPoint)) {
             hitPoint = pt;
-            hitNormal = this.getAABBNormal(pt, wall);
           }
         }
       }
 
-      // Check enemy hits
       const enemies = getEnemies();
+      let hitEnemy = null;
       for (const enemy of enemies) {
         if (!enemy.alive) continue;
         const sphereCenter = enemy.mesh.position.clone();
         sphereCenter.y += 1.2;
-        const t = this.raySphere(origin, dir, sphereCenter, 0.7);
-        if (
-          t !== null &&
-          t < w.range &&
-          (!hitPoint || t < origin.distanceTo(hitPoint))
-        ) {
+        const t = this.raySphere(origin, dir, sphereCenter, 0.6);
+        if (t !== null && t < def.range && (!hitPoint || t < origin.distanceTo(hitPoint))) {
           hitPoint = origin.clone().addScaledVector(dir, t);
           hitEnemy = enemy;
         }
       }
 
       if (hitEnemy) {
-        const killed = hurtEnemy(hitEnemy, w.damage, scene);
-        spawnImpact(scene, hitPoint, new THREE.Vector3(0, 1, 0));
+        const killed = hurtEnemy(hitEnemy, def.damage, scene);
+        sfxHit();
+        spawnBulletImpact(scene, hitPoint, new THREE.Vector3(0, 1, 0));
+        this.hud.showHitMarker();
+        this.score += 10;
 
         if (killed) {
           this.kills++;
-          this.score += 150;
-        } else {
-          this.score += 10;
+          this.aliveNPCs--;
+          this.score += 200;
+          sfxExplosion();
         }
-
-        // Hit marker
-        gsap.to(this.hitMarker, {
-          opacity: 1,
-          duration: 0.05,
-          onComplete: () => {
-            gsap.to(this.hitMarker, { opacity: 0, duration: 0.1 });
-          },
-        });
       } else if (hitPoint) {
-        spawnImpact(scene, hitPoint, hitNormal || new THREE.Vector3(0, 1, 0));
-        showTrail(scene, origin, hitPoint, w.color);
+        spawnBulletImpact(scene, hitPoint, new THREE.Vector3(0, 1, 0));
+        showTrail(scene, origin, hitPoint, def.color);
       } else {
-        // Miss - trail into distance
-        const farPoint = origin.clone().addScaledVector(dir, w.range);
-        showTrail(scene, origin, farPoint, w.color);
+        showTrail(scene, origin, origin.clone().addScaledVector(dir, def.range), def.color);
       }
     }
 
     // Muzzle flash
-    const flashWorldPos = new THREE.Vector3();
-    this.weaponMuzzlePoint.getWorldPosition(flashWorldPos);
-    triggerMuzzleFlash(
-      this.muzzleFlash,
-      flashWorldPos,
-      this.camera.quaternion
-    );
-
-    // Weapon recoil animation
-    gsap.to(this.weaponGroup.position, {
-      z: 0.08,
-      y: -0.02,
-      duration: 0.04,
-      yoyo: true,
-      repeat: 1,
-      ease: "power2.out",
-    });
-
-    if (w.ammo !== Infinity) {
-      this.ammo[this.currentWeapon]--;
+    const muzzlePoint = this.inventory.getMuzzlePoint();
+    if (muzzlePoint) {
+      const worldPos = new THREE.Vector3();
+      muzzlePoint.getWorldPosition(worldPos);
+      triggerMuzzleFlash(this.muzzleFlash, worldPos, def.color);
     }
 
-    this.weaponCooldown = w.cooldown;
-    this.updateHUD();
+    // Recoil
+    if (model) {
+      gsap.to(model.group.position, { z: 0.08, y: -0.03, duration: 0.04, yoyo: true, repeat: 1 });
+    }
+
+    // Screen shake for sniper
+    if (def.id === "sniper") {
+      this.screenShake = 0.08;
+    }
+
+    this.weaponCooldown = def.cooldown;
+    this.updateHUDAll();
+
+    // Sound
+    if (def.id === "shotgun") sfxShotgun();
+    else if (def.id === "sniper") sfxSniper();
+    else if (def.fireMode === "auto") sfxRifle();
+    else sfxShoot();
   }
 
   rayAABB(origin, dir, box) {
-    let tmin = -Infinity;
-    let tmax = Infinity;
-
-    const invDirX = 1 / (dir.x || 0.0001);
-    const invDirY = 1 / (dir.y || 0.0001);
-    const invDirZ = 1 / (dir.z || 0.0001);
-
-    const tx1 = (box.minX - origin.x) * invDirX;
-    const tx2 = (box.maxX - origin.x) * invDirX;
+    let tmin = -Infinity, tmax = Infinity;
+    const invX = 1 / (dir.x || 0.0001);
+    const invY = 1 / (dir.y || 0.0001);
+    const invZ = 1 / (dir.z || 0.0001);
+    const tx1 = (box.minX - origin.x) * invX, tx2 = (box.maxX - origin.x) * invX;
     tmin = Math.max(tmin, Math.min(tx1, tx2));
     tmax = Math.min(tmax, Math.max(tx1, tx2));
-
-    const ty1 = (box.minY - origin.y) * invDirY;
-    const ty2 = (box.maxY - origin.y) * invDirY;
+    const ty1 = (box.minY - origin.y) * invY, ty2 = (box.maxY - origin.y) * invY;
     tmin = Math.max(tmin, Math.min(ty1, ty2));
     tmax = Math.min(tmax, Math.max(ty1, ty2));
-
-    const tz1 = (box.minZ - origin.z) * invDirZ;
-    const tz2 = (box.maxZ - origin.z) * invDirZ;
+    const tz1 = (box.minZ - origin.z) * invZ, tz2 = (box.maxZ - origin.z) * invZ;
     tmin = Math.max(tmin, Math.min(tz1, tz2));
     tmax = Math.min(tmax, Math.max(tz1, tz2));
-
-    if (tmax >= Math.max(tmin, 0)) return tmin > 0 ? tmin : tmax;
-    return null;
-  }
-
-  getAABBNormal(point, box) {
-    const d = [
-      { v: box.minX - point.x, n: new THREE.Vector3(-1, 0, 0) },
-      { v: point.x - box.maxX, n: new THREE.Vector3(1, 0, 0) },
-      { v: box.minY - point.y, n: new THREE.Vector3(0, -1, 0) },
-      { v: point.y - box.maxY, n: new THREE.Vector3(0, 1, 0) },
-      { v: box.minZ - point.z, n: new THREE.Vector3(0, 0, -1) },
-      { v: point.z - box.maxZ, n: new THREE.Vector3(0, 0, 1) },
-    ];
-    d.sort((a, b) => b.v - a.v);
-    return d[0].n;
+    return tmax >= Math.max(tmin, 0) ? Math.max(tmin, 0) : null;
   }
 
   raySphere(origin, dir, center, radius) {
@@ -417,245 +417,201 @@ class Game {
   updatePlayer(dt) {
     if (this.state !== "playing") return;
 
-    // Movement
-    const moveSpeed = 8;
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(
-      this.camera.quaternion
-    );
-    forward.y = 0;
-    forward.normalize();
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(
-      this.camera.quaternion
-    );
-    right.y = 0;
-    right.normalize();
+    const speed = 10;
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    forward.y = 0; forward.normalize();
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    right.y = 0; right.normalize();
 
-    let moveX = 0;
-    let moveZ = 0;
+    let mx = 0, mz = 0;
+    if (this.keys["KeyW"]) { mx += forward.x; mz += forward.z; }
+    if (this.keys["KeyS"]) { mx -= forward.x; mz -= forward.z; }
+    if (this.keys["KeyA"]) { mx -= right.x; mz -= right.z; }
+    if (this.keys["KeyD"]) { mx += right.x; mz += right.z; }
 
-    if (this.keys["KeyW"]) {
-      moveX += forward.x;
-      moveZ += forward.z;
-    }
-    if (this.keys["KeyS"]) {
-      moveX -= forward.x;
-      moveZ -= forward.z;
-    }
-    if (this.keys["KeyA"]) {
-      moveX -= right.x;
-      moveZ -= right.z;
-    }
-    if (this.keys["KeyD"]) {
-      moveX += right.x;
-      moveZ += right.z;
+    if (mx !== 0 || mz !== 0) {
+      const len = Math.sqrt(mx * mx + mz * mz);
+      mx = (mx / len) * speed;
+      mz = (mz / len) * speed;
     }
 
-    if (moveX !== 0 || moveZ !== 0) {
-      const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
-      moveX = (moveX / len) * moveSpeed;
-      moveZ = (moveZ / len) * moveSpeed;
-    }
-
-    // Jump
     if (this.keys["Space"] && this.playerOnGround) {
-      this.playerVelocity.y = 6;
+      this.playerVelocity.y = 7;
       this.playerOnGround = false;
     }
 
-    // Gravity
-    this.playerVelocity.y -= 15 * dt;
+    this.playerVelocity.y -= 18 * dt;
+    const nx = this.playerPos.x + mx * dt;
+    const nz = this.playerPos.z + mz * dt;
+    const ny = this.playerPos.y + this.playerVelocity.y * dt;
 
-    // Apply movement
-    const newX = this.playerPos.x + moveX * dt;
-    const newZ = this.playerPos.z + moveZ * dt;
-    const newY = this.playerPos.y + this.playerVelocity.y * dt;
+    if (!checkWallCollision(nx, this.playerPos.z, 0.35, this.walls)) this.playerPos.x = nx;
+    if (!checkWallCollision(this.playerPos.x, nz, 0.35, this.walls)) this.playerPos.z = nz;
 
-    // Collision
-    const halfW = 0.3;
-    if (!checkWallCollision(newX, this.playerPos.z, halfW, this.walls)) {
-      this.playerPos.x = newX;
-    }
-    if (!checkWallCollision(this.playerPos.x, newZ, halfW, this.walls)) {
-      this.playerPos.z = newZ;
-    }
+    if (ny <= 1.6) { this.playerPos.y = 1.6; this.playerVelocity.y = 0; this.playerOnGround = true; }
+    else this.playerPos.y = ny;
 
-    // Ground check
-    if (newY <= 1.6) {
-      this.playerPos.y = 1.6;
-      this.playerVelocity.y = 0;
-      this.playerOnGround = true;
-    } else {
-      this.playerPos.y = newY;
-    }
-
-    // Clamp to map
-    const mapHalf = 38;
-    this.playerPos.x = Math.max(
-      -mapHalf,
-      Math.min(mapHalf, this.playerPos.x)
-    );
-    this.playerPos.z = Math.max(
-      -mapHalf,
-      Math.min(mapHalf, this.playerPos.z)
-    );
+    const half = getMapHalf();
+    this.playerPos.x = Math.max(-half, Math.min(half, this.playerPos.x));
+    this.playerPos.z = Math.max(-half, Math.min(half, this.playerPos.z));
 
     this.camera.position.copy(this.playerPos);
   }
 
   update(dt) {
     if (this.state !== "playing") return;
-
     if (dt > 0.1) dt = 0.1;
 
     this.updatePlayer(dt);
 
     // Cooldowns
     if (this.weaponCooldown > 0) this.weaponCooldown -= dt;
-    if (this.weaponReloading > 0) {
-      this.weaponReloading -= dt;
-      if (this.weaponReloading <= 0) {
-        this.ammo[this.currentWeapon] = weaponDefs[this.currentWeapon].maxAmmo;
-        this.updateHUD();
-        gsap.to(this.reloadIndicator, { opacity: 0, duration: 0.15 });
+    if (this.isReloading) {
+      this.reloadTimer -= dt;
+      if (this.reloadTimer <= 0) {
+        this.isReloading = false;
+        this.hud.hideReloading();
       }
     }
     if (this.invulnTimer > 0) this.invulnTimer -= dt;
+    if (this.healCooldown > 0) this.healCooldown -= dt;
 
-    // Auto-shoot for automatic weapons
-    if (
-      this.isShooting &&
-      this.weaponCooldown <= 0 &&
-      weaponDefs[this.currentWeapon].fireRate === "auto"
-    ) {
-      this.shoot();
+    // Shooting
+    const w = this.inventory.getCurrentWeapon();
+    if (this.isShooting && this.weaponCooldown <= 0 && !this.isReloading) {
+      if (w.def.fireMode === "auto") this.shoot();
+      else this.shoot();
     }
 
-    // Semi-auto shoot
-    if (
-      this.isShooting &&
-      this.weaponCooldown <= 0 &&
-      weaponDefs[this.currentWeapon].fireRate !== "auto"
-    ) {
-      this.shoot();
-      // For semi-auto, prevent continuous fire by requiring re-click
-      // Handled by mousedown event
-    }
-
-    // Update enemies
-    this.waveTimer += dt;
-    const enemies = getEnemies();
-
-    // Spawn enemies
-    if (enemies.length === 0 && this.enemiesToSpawn <= 0) {
-      this.wave++;
-      this.enemiesToSpawn = 3 + this.wave * 2;
-      this.waveTimer = 0;
-      this.playerHP = Math.min(this.playerMaxHP, this.playerHP + 25);
-      this.updateHUD();
-    }
-
-    const maxEnemies = 6;
-    while (enemies.length < maxEnemies && this.enemiesToSpawn > 0) {
-      const spawn = findSpawnPoint(this.walls);
-      const type = Math.random() < 0.2 + this.wave * 0.05 ? "heavy" : "grunt";
-      createEnemy(scene, spawn, type);
-      this.enemiesToSpawn--;
-    }
-
-    const enemyShot = updateEnemies(
-      dt,
-      this.playerPos,
-      true,
-      this.walls,
-      scene
-    );
-
-    // Process enemy shots
-    if (enemyShot) {
-      const dirToPlayer = this.playerPos
-        .clone()
-        .sub(enemyShot.muzzlePos)
-        .normalize();
-      const dist = enemyShot.muzzlePos.distanceTo(this.playerPos);
-
-      // Simple hit check - raycast from enemy to player
-      let blocked = false;
-      for (const wall of this.walls) {
-        const t = this.rayAABB(enemyShot.muzzlePos, dirToPlayer, wall);
-        if (t !== null && t < dist) {
-          blocked = true;
-          break;
-        }
-      }
-
-      if (!blocked && this.invulnTimer <= 0) {
-        // Show enemy bullet trail
-        const shotColor = 0xff4444;
-        const trailEnd = enemyShot.muzzlePos
-          .clone()
-          .addScaledVector(dirToPlayer, 3);
-        showTrail(scene, enemyShot.muzzlePos, trailEnd, shotColor);
-
-        this.playerHP -= 10;
-        this.invulnTimer = 0.3;
-
-        // Damage flash
-        gsap.to(this.damageFlash, {
-          opacity: 0.6,
-          duration: 0.05,
-          onComplete: () => {
-            gsap.to(this.damageFlash, { opacity: 0, duration: 0.3 });
-          },
-        });
-
-        if (this.playerHP <= 0) {
-          this.playerHP = 0;
-          this.gameOver();
-          return;
-        }
-        this.updateHUD();
+    // Zone
+    this.zone.update(dt);
+    if (this.zone.isOutside(this.playerPos)) {
+      if (this.invulnTimer <= 0) {
+        const dmg = this.zone.getDamage() * dt;
+        const reduction = this.inventory.getDamageReduction();
+        this.playerHP -= dmg * (1 - reduction);
+        this.inventory.damageArmor(dmg * (1 - reduction));
+        this.invulnTimer = 0.5;
+        this.hud.flashDamage();
+        sfxDamage();
       }
     }
+
+    // Grenade physics
+    if (this.activeGrenade && !this.activeGrenade.exploded) {
+      const g = this.activeGrenade;
+      g.vel.y -= 15 * dt;
+      g.pos.x += g.vel.x * dt;
+      g.pos.y += g.vel.y * dt;
+      g.pos.z += g.vel.z * dt;
+
+      // Ground hit
+      if (g.pos.y <= 0.2) {
+        g.pos.y = 0.2;
+        g.life -= dt;
+        if (g.life <= 0) {
+          spawnExplosion(scene, g.pos, g.radius);
+          for (const enemy of getEnemies()) {
+            if (!enemy.alive) continue;
+            const ed = enemy.mesh.position.distanceTo(g.pos);
+            if (ed < g.radius) {
+              const dmg = 100 * (1 - ed / g.radius);
+              const killed = hurtEnemy(enemy, dmg, scene);
+              if (killed) { this.kills++; this.aliveNPCs--; this.score += 300; }
+            }
+          }
+          g.exploded = true;
+          this.activeGrenade = null;
+        }
+      }
+    }
+
+    // NPC AI
+    for (const enemy of getEnemies()) {
+      if (!enemy.alive) continue;
+      const shootData = updateAI(enemy, dt, this.playerPos, this.state === "playing", this.walls, getMapHalf());
+      if (shootData && this.invulnTimer <= 0) {
+        let blocked = false;
+        for (const wall of this.walls) {
+          if (this.rayAABB(shootData.origin, shootData.direction, wall) !== null) {
+            blocked = true;
+            break;
+          }
+        }
+        if (!blocked) {
+          showTrail(scene, shootData.origin, shootData.origin.clone().addScaledVector(shootData.direction, 5), 0xff4444);
+          const reduction = this.inventory.getDamageReduction();
+          this.playerHP -= shootData.damage * (1 - reduction);
+          this.inventory.damageArmor(shootData.damage * (1 - reduction));
+          this.invulnTimer = 0.2;
+          this.hud.flashDamage();
+          sfxDamage();
+        }
+      }
+    }
+
+    // Update pickups
+    updatePickups(this.clock.elapsedTime, scene);
 
     // Update particles
-    updateParticles(dt);
+    updateParticles(dt, scene);
 
-    // Weapon sway
-    if (this.weaponGroup) {
-      const swayX = Math.sin(Date.now() * 0.003) * 0.003;
-      const swayY = Math.cos(Date.now() * 0.005) * 0.004;
-      this.weaponGroup.position.x +=
-        (swayX - this.weaponGroup.position.x) * 5 * dt;
-      if (!this.isShooting) {
-        this.weaponGroup.position.y +=
-          (-0.2 + swayY - this.weaponGroup.position.y) * 8 * dt;
-      }
+    // Clean up dead enemies
+    removeDeadEnemies(scene);
+
+    // Player death
+    if (this.playerHP <= 0) {
+      this.playerHP = 0;
+      this.gameOver();
+      return;
     }
 
-    this.updateHUD();
+    // Update HUD
+    this.updateHUDAll();
   }
 
-  updateHUD() {
-    const w = weaponDefs[this.currentWeapon];
-    this.hpBar.style.width = (this.playerHP / this.playerMaxHp) * 100 + "%";
-    this.hpText.textContent = Math.ceil(this.playerHP);
-    this.killsText.textContent = this.kills;
-    this.scoreText.textContent = this.score;
-    this.weaponName.textContent = w.name;
-
-    const ammo = this.ammo[this.currentWeapon];
-    this.ammoText.textContent = ammo === Infinity ? "∞" : ammo;
-    this.ammoText.classList.toggle("low", ammo !== Infinity && ammo <= 5);
+  updateHUDAll() {
+    this.hud.update(this.playerHP, this.playerMaxHP, this.kills, this.score);
+    const info = this.inventory.getInfo();
+    this.hud.updateWeapon(info.currentWeapon, info.ammo, info.reserve, info.isInfAmmo);
+    this.hud.updateBackpack(this.inventory);
+    this.hud.updateZone(this.zone.getPhaseInfo());
+    this.hud.updateAliveCount(this.aliveNPCs + 1); // +1 for player
   }
 
-  gameLoop() {
+  gameOver() {
+    this.state = "gameover";
+    document.exitPointerLock();
+    this.isPointerLocked = false;
+    this.hud.setCrosshairVisible(false);
+    this.hud.showGameOver(this.score, this.kills, this.zone.getPhaseInfo().phase);
+  }
+
+  gameLoop(time) {
     const dt = Math.min(this.clock.getDelta(), 0.1);
+    if (this.state === "playing") this.update(dt);
 
-    if (this.state === "playing") {
-      this.update(dt);
+    // Cloud animation
+    if (this.clouds) {
+      this.clouds.children.forEach((c) => {
+        c.position.x += Math.sin(time * 0.0005 + c.userData.offset) * 0.02;
+      });
     }
 
     this.renderer.render(scene, this.camera);
+  }
+
+  removeAllNPCs() {
+    const enemies = getEnemies();
+    while (enemies.length > 0) {
+      const e = enemies[0];
+      e.mesh.traverse((c) => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+      });
+      scene.remove(e.mesh);
+      enemies.splice(0, 1);
+    }
   }
 }
 

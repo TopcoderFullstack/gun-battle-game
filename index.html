@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GUN BATTLE 3D - 枪战</title>
+    <title>BATTLE ROYALE 3D - 缩圈吃鸡</title>
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -30,8 +30,34 @@
       </div>
 
       <div id="weapon-hud">
-        <span id="weapon-name">PISTOL</span>
+        <span id="weapon-name">FIST</span>
         <span id="ammo-text" class="ammo">∞</span>
+      </div>
+
+      <!-- Backpack Panel -->
+      <div id="backpack-panel">
+        <div class="bp-section">
+          <span class="bp-label">WEAPONS</span>
+          <div id="slot-1" class="bp-slot">1: --</div>
+          <div id="slot-2" class="bp-slot">2: --</div>
+        </div>
+        <div class="bp-section">
+          <span class="bp-label">ITEMS</span>
+          <div id="item-bandage" class="bp-item">--</div>
+          <div id="item-medkit" class="bp-item">--</div>
+          <div id="item-armor" class="bp-item">--</div>
+        </div>
+      </div>
+
+      <!-- Zone Info -->
+      <div id="zone-info">
+        <span id="zone-phase">Phase 1/7</span>
+        <span id="zone-timer">30s</span>
+      </div>
+
+      <!-- Alive Count -->
+      <div id="alive-info">
+        <span id="alive-count">Alive: 12</span>
       </div>
 
       <div id="crosshair">

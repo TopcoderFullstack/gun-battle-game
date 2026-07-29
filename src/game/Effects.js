@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import gsap from "gsap";
 
+const trails = [];
 const particles = [];
-const trailPool = [];
 
 export function createMuzzleFlash(scene) {
-  const geo = new THREE.PlaneGeometry(0.3, 0.3);
+  const geo = new THREE.PlaneGeometry(0.4, 0.4);
   const mat = new THREE.MeshBasicMaterial({
     color: 0xffaa00,
     side: THREE.DoubleSide,
@@ -14,31 +14,55 @@ export function createMuzzleFlash(scene) {
     depthWrite: false,
   });
   const flash = new THREE.Mesh(geo, mat);
-  scene.add(flash);
   flash.visible = false;
+  scene.add(flash);
   return flash;
 }
 
-export function triggerMuzzleFlash(flash, position, quaternion) {
-  flash.position.copy(position);
-  flash.quaternion.copy(quaternion);
-  flash.visible = true;
+export function triggerMuzzleFlash(flash, pos, color = 0xffaa00) {
+  flash.position.copy(pos);
+  flash.material.color.setHex(color);
   flash.material.opacity = 1;
-  flash.scale.set(1 + Math.random(), 1 + Math.random(), 1);
+  flash.visible = true;
+  flash.scale.set(1.5 + Math.random(), 1.5 + Math.random(), 1);
 
   gsap.to(flash.material, {
     opacity: 0,
-    duration: 0.06,
+    duration: 0.05,
     onComplete: () => {
       flash.visible = false;
     },
   });
 }
 
-export function spawnImpact(scene, point, normal) {
-  const sparkCount = 6;
-  for (let i = 0; i < sparkCount; i++) {
-    const geo = new THREE.SphereGeometry(0.03, 4, 4);
+export function showTrail(scene, start, end, color = 0xffcc00) {
+  const pts = [start.clone(), end.clone()];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+  });
+  const line = new THREE.Line(geo, mat);
+  scene.add(line);
+  trails.push({ line, age: 0, maxAge: 0.15 });
+
+  gsap.to(mat, {
+    opacity: 0,
+    duration: 0.15,
+    onComplete: () => {
+      scene.remove(line);
+      geo.dispose();
+      mat.dispose();
+    },
+  });
+}
+
+export function spawnBulletImpact(scene, point, normal) {
+  const count = 5 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.SphereGeometry(0.04, 4, 4);
     const mat = new THREE.MeshBasicMaterial({
       color: 0xffaa44,
       transparent: true,
@@ -46,94 +70,88 @@ export function spawnImpact(scene, point, normal) {
     });
     const spark = new THREE.Mesh(geo, mat);
     spark.position.copy(point);
-    spark.userData.velocity = new THREE.Vector3(
-      (Math.random() - 0.5) * 6 + normal.x * 3,
-      Math.random() * 4 + 1,
-      (Math.random() - 0.5) * 6 + normal.z * 3
-    );
-    spark.userData.life = 0.3 + Math.random() * 0.3;
-    spark.userData.age = 0;
+    spark.userData = {
+      velocity: new THREE.Vector3(
+        (Math.random() - 0.5) * 8 + normal.x * 4,
+        Math.random() * 5 + 2,
+        (Math.random() - 0.5) * 8 + normal.z * 4
+      ),
+      life: 0.4 + Math.random() * 0.3,
+      age: 0,
+    };
     scene.add(spark);
     particles.push(spark);
   }
-
-  // Impact marker (small decal-like quad)
-  const markerGeo = new THREE.CircleGeometry(0.15, 8);
-  const markerMat = new THREE.MeshBasicMaterial({
-    color: 0x333333,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.6,
-    depthWrite: false,
-  });
-  const marker = new THREE.Mesh(markerGeo, markerMat);
-  marker.position.copy(point).addScaledVector(normal, 0.01);
-  marker.lookAt(point.clone().add(normal));
-  marker.userData.life = 5;
-  marker.userData.age = 0;
-  scene.add(marker);
-  particles.push(marker);
 }
 
-export function createBulletTrail(scene) {
-  const points = [new THREE.Vector3(), new THREE.Vector3()];
-  const geo = new THREE.BufferGeometry().setFromPoints(points);
-  const mat = new THREE.LineBasicMaterial({
-    color: 0xffcc00,
-    transparent: true,
-    opacity: 0.6,
-    depthWrite: false,
-  });
-  return { line: new THREE.Line(geo, mat), points, pool: true };
-}
-
-export function showTrail(scene, start, end, color = 0xffcc00) {
-  let trailObj;
-  if (trailPool.length > 0) {
-    trailObj = trailPool.pop();
-    trailObj.points[0].copy(start);
-    trailObj.points[1].copy(end);
-    trailObj.line.geometry.setFromPoints(trailObj.points);
-    trailObj.line.material.color.setHex(color);
-    trailObj.line.material.opacity = 0.7;
-    trailObj.line.visible = true;
-  } else {
-    const pts = [start.clone(), end.clone()];
-    const g = new THREE.BufferGeometry().setFromPoints(pts);
-    const m = new THREE.LineBasicMaterial({
-      color,
+export function spawnExplosion(scene, pos, radius) {
+  const count = 15;
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.SphereGeometry(0.08, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({
+      color: i < 8 ? 0xff6600 : 0xffcc00,
       transparent: true,
-      opacity: 0.7,
       depthWrite: false,
     });
-    trailObj = { line: new THREE.Line(g, m), points: pts };
-    scene.add(trailObj.line);
+    const p = new THREE.Mesh(geo, mat);
+    p.position.copy(pos);
+    const v = new THREE.Vector3(
+      (Math.random() - 0.5) * radius * 2,
+      Math.random() * radius,
+      (Math.random() - 0.5) * radius * 2
+    );
+    p.userData = {
+      velocity: v,
+      life: 0.5 + Math.random() * 0.5,
+      age: 0,
+    };
+    scene.add(p);
+    particles.push(p);
   }
 
-  gsap.to(trailObj.line.material, {
+  // Flash sphere
+  const flashGeo = new THREE.SphereGeometry(radius * 0.5, 16, 16);
+  const flashMat = new THREE.MeshBasicMaterial({
+    color: 0xffaa00,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false,
+  });
+  const flashSphere = new THREE.Mesh(flashGeo, flashMat);
+  flashSphere.position.copy(pos);
+  scene.add(flashSphere);
+
+  gsap.to(flashSphere.scale, {
+    x: 3,
+    y: 3,
+    z: 3,
+    duration: 0.3,
+  });
+  gsap.to(flashMat, {
     opacity: 0,
-    duration: 0.2,
-    delay: 0.02,
+    duration: 0.3,
     onComplete: () => {
-      trailObj.line.visible = false;
-      trailPool.push(trailObj);
+      scene.remove(flashSphere);
+      flashGeo.dispose();
+      flashMat.dispose();
     },
   });
 }
 
-export function updateParticles(dt) {
+export function updateParticles(dt, scene) {
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.userData.age += dt;
     if (p.userData.age >= p.userData.life) {
       p.geometry?.dispose();
       p.material?.dispose();
-      p.parent?.remove(p);
+      scene.remove(p);
       particles.splice(i, 1);
       continue;
     }
     const t = p.userData.age / p.userData.life;
     p.material.opacity = 1 - t;
+    p.scale.setScalar(1 - t * 0.7);
     if (p.userData.velocity) {
       p.position.x += p.userData.velocity.x * dt;
       p.position.y += p.userData.velocity.y * dt;
@@ -143,25 +161,18 @@ export function updateParticles(dt) {
   }
 }
 
-export function clearAllEffects(scene) {
+export function cleanupEffects(scene) {
   for (const p of particles) {
     p.geometry?.dispose();
     p.material?.dispose();
-    p.parent?.remove(p);
+    scene.remove(p);
   }
   particles.length = 0;
 
-  scene.traverse((obj) => {
-    if (
-      obj.userData &&
-      obj.userData.pool &&
-      obj.userData.line &&
-      obj.userData.line.parent
-    ) {
-      obj.userData.line.parent.remove(obj.userData.line);
-      obj.userData.line.geometry?.dispose();
-      obj.userData.line.material?.dispose();
-    }
-  });
-  trailPool.length = 0;
+  for (const t of trails) {
+    t.line.geometry?.dispose();
+    t.line.material?.dispose();
+    scene.remove(t.line);
+  }
+  trails.length = 0;
 }
